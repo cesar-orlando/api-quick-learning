@@ -1,6 +1,8 @@
 const express = require("express");
 const app = express();
 const cors = require("cors");
+require("dotenv").config();
+const { default: mongoose } = require('mongoose');
 /* Bland IA */
 const call = require("../router/v1/callSend");
 const listCalls = require("../router/v1/listCalls");
@@ -16,6 +18,10 @@ app.use(cors());
 app.use(express.urlencoded({ limit: "32MB", extended: true }));
 app.use(express.json({ limit: "32MB", extended: true }));
 
+/* Routes */
+app.use("/api/v1/user", require("../router/v1/user"));
+
+/* Bland IA */
 app.use("/api/v1/callsend", call);
 app.use("/api/v1/listcalls", listCalls);
 app.use("/api/v1/calldetails", callDetails);
@@ -29,7 +35,16 @@ app.use("/api/v2/followupboss", followupboss);
 
 
 app.listen(PORT, () => {
+
     console.log(`API listening on PORT ${PORT} `)
+    mongoose.connect(process.env.MONGO_URI, {
+        autoCreate: true
+    }).then(() => {
+            console.log('conexión exitosa');
+        })
+        .catch((error) => {
+            console.log(error);
+        })
 })
 
 app.get('/', (req, res) => {
