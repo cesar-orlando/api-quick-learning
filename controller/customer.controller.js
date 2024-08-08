@@ -33,6 +33,10 @@ class customerController{
         const customerData = await customer.findOne(filter);
         return customerData ? customerData : false;
       }
+      async getAllCustom() {
+        console.log("customer.find() --->", await customer.find())
+       return await customer.find();
+      }
 }
 
 module.exports = new customerController();

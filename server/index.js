@@ -20,6 +20,7 @@ app.use(express.json({ limit: "32MB", extended: true }));
 
 /* Routes */
 app.use("/api/v1/user", require("../router/v1/user"));
+app.use("/api/v1/customer", require("../router/v1/customer"));
 
 /* Bland IA */
 app.use("/api/v1/callsend", call);
