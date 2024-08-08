@@ -7,7 +7,6 @@ const CustomerSchema = new mongoose.Schema({
     },
     email: {
         type: String,
-        required: true
     },
     phone: {
         type: String,
@@ -15,7 +14,18 @@ const CustomerSchema = new mongoose.Schema({
     },
     message: {
         type: String,
+    },
+    whatsAppProfile:{
+        type: String,
         required: true
+    },
+    whatsAppNumber:{
+        type: String,
+        required: true
+    },
+    status:{
+        type: Number,
+        default: 3
     },
     date: {
         type: Date,

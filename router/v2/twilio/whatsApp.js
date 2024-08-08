@@ -1,32 +1,67 @@
 require("dotenv").config();
 const express = require("express");
 const router = express.Router();
-const { MessagingResponse } = require('twilio').twiml;
+const { MessagingResponse } = require("twilio").twiml;
 
-const generatePersonalityResponse =  require("../../../services/chatgpt");
+/* COMPONENTS */
+const generatePersonalityResponse = require("../../../services/chatgpt");
+const Joi = require("joi");
+const { VALIDATED_FIELDS, MESSAGE_RESPONSE, MESSAGE_RESPONSE_CODE } = require("../../../lib/constans");
+const customerController = require("../../../controller/customer.controller");
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
-const client = require('twilio')(accountSid, authToken);
+const client = require("twilio")(accountSid, authToken);
 
 router.post("/", async (req, res) => {
-    console.log("SI ENTRA AQUI")
   const message = await client.messages.create({
-        body: 'Primera Prueba',
-        from: 'whatsapp:+14155238886',
-        to: 'whatsapp:+5213322155070'
-    })
-    
-
-  console.log(message);
-  return res.status(200).json({ message: "Message sent" });
+    body: "Hola Cesar, te hablo de QuickLearning, vimos que estas interesado en el curso intensivo presencial",
+    from: "whatsapp:+14155238886",
+    to: "whatsapp:+5213322155070",
+  });
+  return res.status(200).json({ message: "Message sent", message });
 });
 
-router.post('/message', async (req, res) => {
-    const aiResponse = await generatePersonalityResponse(req.body.Body, req.body.From)
+router.post("/message", async (req, res) => {
+  try {
+    const validateUser = await customerController.findOneCustom({ whatsAppNumber: req.body.To });
+    if (validateUser) {
+      console.log("El número ya esta registrado");
+    } else {
+      const data = {
+        name: req.body.ProfileName,
+        email: "",
+        phone: req.body.WaId,
+        whatsAppProfile: req.body.ProfileName,
+        whatsAppNumber: req.body.To,
+      };
+      await customerController.create(data);
+    }
+    const aiResponse = await generatePersonalityResponse(req.body.Body, req.body.From);
     const twiml = new MessagingResponse();
     twiml.message(aiResponse);
-    res.type('text/xml').send(twiml.toString());
+    res.type("text/xml").send(twiml.toString());
+  } catch (error) {
+    console.log("message: error.message --->", error.message);
+    return res.status(MESSAGE_RESPONSE_CODE.BAD_REQUEST).json({ message: error.message });
+  }
+});
+
+router.get("/logs-messages", async (req, res) => {
+  const messages = await client.messages.list();
+
+  let filteredMessages = messages.map((message) => {
+    return {
+      sid: message.sid,
+      direction: message.direction,
+      from: message.from,
+      to: message.to,
+      body: message.body,
+      dateCreated: message.dateCreated,
+    };
+  });
+  let findMessages = filteredMessages.filter((message) => req.body.to === message.to);
+  return res.status(200).json({ findMessages });
 });
 
 module.exports = router;
