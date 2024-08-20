@@ -23,6 +23,12 @@ const CustomerSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    city:{
+        type: String,
+    },
+    social:{
+        type: String,
+    },
     status:{
         type: Number,
         default: 3

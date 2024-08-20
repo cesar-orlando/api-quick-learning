@@ -2,7 +2,6 @@ require("dotenv").config();
 const express = require("express");
 const router = express.Router();
 const { MessagingResponse } = require("twilio").twiml;
-
 /* COMPONENTS */
 const generatePersonalityResponse = require("../../../services/chatgpt");
 const Joi = require("joi");
@@ -17,14 +16,18 @@ router.post("/", async (req, res) => {
   const message = await client.messages.create({
     body: "Hola Cesar, te hablo de QuickLearning, vimos que estas interesado en el curso intensivo presencial",
     from: "whatsapp:+14155238886",
-    to: "whatsapp:+5213322155070",
+    to: "whatsapp:+5213328322708",
   });
   return res.status(200).json({ message: "Message sent", message });
 });
 
 router.post("/message", async (req, res) => {
+  console.log("req.body --->", req.body);
   try {
-    const validateUser = await customerController.findOneCustom({ whatsAppNumber: req.body.To });
+    if(req.body.MessageType !== 'text'){
+      return res.status(200).json({ message: "Sticker" });
+    }
+    const validateUser = await customerController.findOneCustom({ whatsAppNumber: req.body.From });
     if (validateUser) {
       console.log("El número ya esta registrado");
     } else {
@@ -33,7 +36,7 @@ router.post("/message", async (req, res) => {
         email: "",
         phone: req.body.WaId,
         whatsAppProfile: req.body.ProfileName,
-        whatsAppNumber: req.body.To,
+        whatsAppNumber: req.body.From,
       };
       await customerController.create(data);
     }
@@ -47,7 +50,7 @@ router.post("/message", async (req, res) => {
   }
 });
 
-router.get("/logs-messages", async (req, res) => {
+router.post("/logs-messages", async (req, res) => {
   const messages = await client.messages.list();
 
   let filteredMessages = messages.map((message) => {
@@ -60,8 +63,32 @@ router.get("/logs-messages", async (req, res) => {
       dateCreated: message.dateCreated,
     };
   });
-  let findMessages = filteredMessages.filter((message) => req.body.to === message.to);
-  return res.status(200).json({ findMessages });
+  let findMessages = filteredMessages.filter((message) => req.body.to === message.to || req.body.to === message.from);
+  return res.status(200).json({ findMessages  });
+});
+
+router.post("/prueba", async (req, res) => {
+  const aiResponse = await generatePersonalityResponse(req.body.Body, req.body.From);
+  return res.status(200).json({ aiResponse });
+});
+
+router.delete("/delete", async (req, res) => {
+  const messages = await client.messages.list();
+  let filteredMessages = messages.map((message) => {
+    return {
+      sid: message.sid,
+      direction: message.direction,
+      from: message.from,
+      to: message.to,
+      body: message.body,
+      dateCreated: message.dateCreated,
+    };
+  });
+  let findMessages = filteredMessages.filter((message) => req.body.to === message.to || req.body.to === message.from);
+  let deleteMessages = findMessages.map((message) => {
+    return client.messages(message.sid).remove();
+  });
+  return res.status(200).json({ deleteMessages });
 });
 
 module.exports = router;

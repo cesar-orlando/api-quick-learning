@@ -17,7 +17,7 @@ router.post("/", TOKEN_MIDDLEWARE_ADMIN, async (req, res) => {
       password: VALIDATED_FIELDS.PASSWORD,
       repassword: VALIDATED_FIELDS.PASSWORD,
       name: VALIDATED_FIELDS.NAME,
-      //permissions: VALIDATED_FIELDS.PERMISSIONS,
+      permissions: VALIDATED_FIELDS.PERMISSIONS,
       status: VALIDATED_FIELDS.STATUS,
     });
 
@@ -65,6 +65,15 @@ router.post("/login", async (req, res) => {
     }
     const token = jwt.sign({ _id: user._id, email: user.email, name: user.name }, process.env.JWT_KEY);
     return res.status(MESSAGE_RESPONSE_CODE.OK).json({ message: MESSAGE_RESPONSE.OK, token });
+  } catch (error) {
+    return res.status(MESSAGE_RESPONSE_CODE.BAD_REQUEST).json({ message: error.message });
+  }
+});
+
+router.get("/", TOKEN_MIDDLEWARE_ADMIN, async (req, res) => {
+  try {
+    const users = await userController.findAll();
+    return res.status(MESSAGE_RESPONSE_CODE.OK).json({ users });
   } catch (error) {
     return res.status(MESSAGE_RESPONSE_CODE.BAD_REQUEST).json({ message: error.message });
   }

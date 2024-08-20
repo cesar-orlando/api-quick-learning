@@ -13,6 +13,18 @@ class userController {
     });
     return userData ? userData : false;
   }
+
+  async findOneCustom(filter) {
+    if (!filter) return false;
+    const userData = await user.findOne(filter);
+    return userData ? userData : false;
+  }
+
+  async findAll(){
+    const users = await user.find();
+    return users;
+  }
+
   async getAllCustom(filter, paginator) {
     let users;
     filter.status = { $in: [STATUS.ACTIVE, STATUS.INACTIVO] };
@@ -28,11 +40,6 @@ class userController {
     }
     if (users.length) return { users, totalDoc };
     return false;
-  }
-  async findOneCustom(filter) {
-    if (!filter) return false;
-    const userData = await user.findOne(filter);
-    return userData ? userData : false;
   }
 
   async findById(id) {

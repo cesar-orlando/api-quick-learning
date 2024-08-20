@@ -34,8 +34,7 @@ class customerController{
         return customerData ? customerData : false;
       }
       async getAllCustom() {
-        console.log("customer.find() --->", await customer.find())
-       return await customer.find();
+       return await customer.find().sort({ date: -1 });
       }
 }
 

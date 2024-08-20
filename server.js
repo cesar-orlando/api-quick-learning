@@ -4,14 +4,14 @@ const cors = require("cors");
 require("dotenv").config();
 const { default: mongoose } = require('mongoose');
 /* Bland IA */
-const call = require("../router/v1/callSend");
-const listCalls = require("../router/v1/listCalls");
-const callDetails = require("../router/v1/callDetails");
+const call = require("./router/v1/callSend");
+const listCalls = require("./router/v1/listCalls");
+const callDetails = require("./router/v1/callDetails");
 /* Twilio */
-const voice = require("../router/v2/twilio/voice");
-const whatsApp = require("../router/v2/twilio/whatsApp");
+const voice = require("./router/v2/twilio/voice");
+const whatsApp = require("./router/v2/twilio/whatsApp");
 /* Follow Up Boos */
-const followupboss = require("../router/v2/followupboss/people");
+const followupboss = require("./router/v2/followupboss/people");
 const PORT = 3000;
 
 app.use(cors());
@@ -19,8 +19,8 @@ app.use(express.urlencoded({ limit: "32MB", extended: true }));
 app.use(express.json({ limit: "32MB", extended: true }));
 
 /* Routes */
-app.use("/api/v1/user", require("../router/v1/user"));
-app.use("/api/v1/customer", require("../router/v1/customer"));
+app.use("/api/v1/user", require("./router/v1/user"));
+app.use("/api/v1/customer", require("./router/v1/customer"));
 
 /* Bland IA */
 app.use("/api/v1/callsend", call);
