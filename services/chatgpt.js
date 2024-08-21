@@ -27,7 +27,7 @@ module.exports = async function generatePersonalityResponse(message, number) {
         let config = {
           method: "post",
           maxBodyLength: Infinity,
-          url: "https://www.jetdan9878.online/api/v2/whastapp/logs-messages",
+          url: "http://localhost:3000/api/v2/whastapp/logs-messages",
           headers: {
             "Content-Type": "application/json",
           },
