@@ -18,10 +18,11 @@ router.post("/", TOKEN_MIDDLEWARE_ADMIN, async (req, res) => {
       repassword: VALIDATED_FIELDS.PASSWORD,
       name: VALIDATED_FIELDS.NAME,
       permissions: VALIDATED_FIELDS.PERMISSIONS,
+      country: VALIDATED_FIELDS.COUNTRY,
       status: VALIDATED_FIELDS.STATUS,
     });
 
-    const { email, password, name, permissions, repassword, status } = await schema.validateAsync(req.body);
+    const { email, password, name, permissions, country, repassword, status } = await schema.validateAsync(req.body);
     /* Validation to see if there is already a user with the same email. */
     const validateUser = await userController.findOneCustom({ email: email.toLowerCase() });
     if (validateUser) {
@@ -37,6 +38,7 @@ router.post("/", TOKEN_MIDDLEWARE_ADMIN, async (req, res) => {
       password: await bcrypt.hash(password, salt),
       name,
       permissions,
+      country,
       status,
     };
     const user = await userController.create(data);

@@ -13,10 +13,11 @@ const authToken = process.env.TWILIO_AUTH_TOKEN;
 const client = require("twilio")(accountSid, authToken);
 
 router.post("/", async (req, res) => {
+  console.log("req.body --->", req.body);
   const message = await client.messages.create({
-    body: "Hola Cesar, te hablo de QuickLearning, vimos que estas interesado en el curso intensivo presencial",
-    from: "whatsapp:+14155238886",
-    to: "whatsapp:+5213328322708",
+    body: req.body.message,
+    from: "whatsapp:+14155238886", // From a valid Twilio number
+    to: req.body.to, // Text this number
   });
   return res.status(200).json({ message: "Message sent", message });
 });

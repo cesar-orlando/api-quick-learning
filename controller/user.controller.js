@@ -8,8 +8,9 @@ class userController {
       email: data.email,
       password: data.password,
       name: data.name,
-      //permissions: data.permissions,
-      status: data?.status ? data?.status : STATUS.ACTIVE,
+    permissions: data.permissions,
+    country: data.country,
+     status: data?.status ? data?.status : STATUS.ACTIVE,
     });
     return userData ? userData : false;
   }

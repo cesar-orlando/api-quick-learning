@@ -6,6 +6,7 @@ const UserSchema = new mongoose.Schema(
         password: String,
         name: String,
         permissions: Number,
+        country: String,
         status: Number
     },
     { timestamps: true }
