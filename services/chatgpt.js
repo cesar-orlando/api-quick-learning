@@ -34,6 +34,7 @@ module.exports = async function generatePersonalityResponse(message, number) {
           data: numberData,
         };
         const response = await axios.request(config);
+        console.log("response --->", response.data);
         let mapMessage = response.data.findMessages.map((message) => {
           return {
             role: message.direction === "outbound-api" ? "assistant" : "user",
