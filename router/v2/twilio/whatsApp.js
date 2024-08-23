@@ -23,12 +23,12 @@ router.post("/", async (req, res) => {
 });
 
 router.post("/message", async (req, res) => {
-  console.log("req.body --->", req.body);
   try {
     if(req.body.MessageType !== 'text'){
       return res.status(200).json({ message: "Sticker" });
     }
     const validateUser = await customerController.findOneCustom({ whatsAppNumber: req.body.From });
+    console.log("validateUser --->", validateUser);
     if (validateUser) {
       console.log("El número ya esta registrado");
     } else {

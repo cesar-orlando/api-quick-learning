@@ -13,6 +13,7 @@ class customerController{
           phone: data.phone,
           whatsAppProfile: data.whatsAppProfile,
           whatsAppNumber: data.whatsAppNumber,
+          ia: true,
           status: data?.status ? data?.status : STATUS_CUSTOMER.PENDIENTE,
         });
         console.log("customerData --->", customerData)

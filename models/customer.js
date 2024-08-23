@@ -33,6 +33,10 @@ const CustomerSchema = new mongoose.Schema({
         type: Number,
         default: 3
     },
+    ia:{ //Este es para si un cliente no quiere que le conteste la IA y hacerlo manual.
+        type: Boolean,
+        default: true
+    },
     date: {
         type: Date,
         default: Date.now

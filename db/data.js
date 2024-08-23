@@ -58,6 +58,9 @@ Planes de Inversión:
 `;
 const sedes = `
 Si te preguntan información sobre las sedes, puedes responder con la siguiente información:
+Antes de mandarles las sedes pregunta la ubicación del usuario.
+Nunca mandes información que no sea esta de las sedes.
+
 Surcursal Arboledas. Calz. de los Jinetes #18, Las Arboledas, 54026 Tlalnepantla, Méx.
 Surcursal Ecatepec. Vía Morelos 25, San Juan Alcahuacan, 55040 Ecatepec de Morelos, Méx.
 Surcursal Coacalco. Av. José López Portillo 53, Coacalco, 55712 Coacalco de Berriozabal, Méx.
@@ -172,7 +175,6 @@ Información de los Cursos.
 ${face_to_face_courses}
 ${online_courses}
 ${virtual_courses}
-Antes de mandarles las sedes pregunta la ubicación del usuario.
 ${sedes}
 ${hours}
 ${student_info}
