@@ -7,6 +7,7 @@ const generatePersonalityResponse = require("../../../services/chatgpt");
 const Joi = require("joi");
 const { VALIDATED_FIELDS, MESSAGE_RESPONSE, MESSAGE_RESPONSE_CODE } = require("../../../lib/constans");
 const customerController = require("../../../controller/customer.controller");
+const { dataChatGpt } = require("../../../db/data");
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
@@ -28,7 +29,6 @@ router.post("/message", async (req, res) => {
       return res.status(200).json({ message: "Sticker" });
     }
     const validateUser = await customerController.findOneCustom({ whatsAppNumber: req.body.From });
-    console.log("validateUser --->", validateUser);
     if (validateUser) {
       console.log("El número ya esta registrado");
     } else {
@@ -69,6 +69,8 @@ router.post("/logs-messages", async (req, res) => {
 });
 
 router.post("/prueba", async (req, res) => {
+  const reponse = await dataChatGpt();
+  console.log("reponse ===>", reponse)
   const aiResponse = await generatePersonalityResponse(req.body.Body, req.body.From);
   return res.status(200).json({ aiResponse });
 });

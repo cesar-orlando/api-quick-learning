@@ -1,13 +1,15 @@
 require("dotenv").config();
 const OpenAI = require("openai");
-const { quickLearningCourses, student_custom_functions } = require("../db/data");
+const { quickLearningCourses, student_custom_functions, dataChatGpt } = require("../db/data");
 const { default: axios } = require("axios");
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+
 module.exports = async function generatePersonalityResponse(message, number) {
   try {
+const reponse = await dataChatGpt();
     let data = {};
     // Verifique si el número ya está en la base de datos
     let numberData = JSON.stringify({
@@ -30,7 +32,7 @@ module.exports = async function generatePersonalityResponse(message, number) {
         content: message.body,
       };
     });
-    mapMessage.unshift({ role: "system", content: quickLearningCourses });
+    mapMessage.unshift({ role: "system", content: reponse });
     data[number] = { number: number, messages: mapMessage };
 
     // Genere mensajes de IA, almacene mensajes en los usuarios y devuélvalos al usuario
