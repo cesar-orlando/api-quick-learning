@@ -149,6 +149,7 @@ Edad.
 Números de teléfono.
 Correo electrónico.
 Nombre del padre, madre o tutor.
+Si el cliente quiere una cita, pide la misma información.
 `;
 const cancel_or_changue = `Si el usuario quiere cancelar o cambiar su curso, puedes responder con la siguiente información:
 Para cancelar o cambiar tu curso, necesitamos que nos proporciones tu nombre completo, número de teléfono y correo electrónico.
