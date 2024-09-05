@@ -257,7 +257,6 @@ const dataChatGpt = async () => {
   \n\n Empiezan las clases la Semana 1, La Semana 4 estan finalizando ${JSON.stringify(map)}
 
   `;
-  console.log("data --->", data);
 
   return data;
 };

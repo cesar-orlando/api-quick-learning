@@ -4,6 +4,8 @@ const router = express.Router();
 const { MessagingResponse } = require("twilio").twiml;
 /* COMPONENTS */
 const generatePersonalityResponse = require("../../../services/chatgpt");
+const generatePersonalityResponseRealState = require("../../../services/chatgpt_arrowhead");
+const generateAgent = require("../../../services/bot_functions");
 const Joi = require("joi");
 const { VALIDATED_FIELDS, MESSAGE_RESPONSE, MESSAGE_RESPONSE_CODE } = require("../../../lib/constans");
 const customerController = require("../../../controller/customer.controller");
@@ -51,6 +53,34 @@ router.post("/message", async (req, res) => {
   }
 });
 
+router.post("/message-arrowhead", async (req, res) => {
+  try {
+    if(req.body.MessageType !== 'text'){
+      return res.status(200).json({ message: "Sticker" });
+    }
+    const validateUser = await customerController.findOneCustom({ whatsAppNumber: req.body.From });
+    if (validateUser) {
+      console.log("El número ya esta registrado");
+    } else {
+      const data = {
+        name: req.body.ProfileName,
+        email: "",
+        phone: req.body.WaId,
+        whatsAppProfile: req.body.ProfileName,
+        whatsAppNumber: req.body.From,
+      };
+      await customerController.create(data);
+    }
+    const aiResponse = await generatePersonalityResponseRealState(req.body.Body, req.body.From);
+    const twiml = new MessagingResponse();
+    twiml.message(aiResponse);
+    res.type("text/xml").send(twiml.toString());
+  } catch (error) {
+    console.log("message: error.message --->", error.message);
+    return res.status(MESSAGE_RESPONSE_CODE.BAD_REQUEST).json({ message: error.message });
+  }
+});
+
 router.post("/logs-messages", async (req, res) => {
   const messages = await client.messages.list();
 
@@ -69,9 +99,7 @@ router.post("/logs-messages", async (req, res) => {
 });
 
 router.post("/prueba", async (req, res) => {
-  const reponse = await dataChatGpt();
-  console.log("reponse ===>", reponse)
-  const aiResponse = await generatePersonalityResponse(req.body.Body, req.body.From);
+  const aiResponse = await generateAgent(req.body.message);
   return res.status(200).json({ aiResponse });
 });
 

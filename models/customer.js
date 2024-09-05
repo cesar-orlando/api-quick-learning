@@ -29,6 +29,9 @@ const CustomerSchema = new mongoose.Schema({
     social:{
         type: String,
     },
+    agent:{
+        type: Object,
+    },
     status:{
         type: Number,
         default: 3

@@ -10,7 +10,7 @@ const userController = require("../../controller/user.controller");
 const { getToken, TOKEN_MIDDLEWARE_ADMIN } = require("../../lib/utils");
 
 /* Ruta para crear usuarios para el administrador. */
-router.post("/", TOKEN_MIDDLEWARE_ADMIN, async (req, res) => {
+router.post("/", async (req, res) => {
   try {
     const schema = Joi.object({
       email: VALIDATED_FIELDS.EMAIL,
@@ -18,11 +18,12 @@ router.post("/", TOKEN_MIDDLEWARE_ADMIN, async (req, res) => {
       repassword: VALIDATED_FIELDS.PASSWORD,
       name: VALIDATED_FIELDS.NAME,
       permissions: VALIDATED_FIELDS.PERMISSIONS,
+      phone: VALIDATED_FIELDS.PHONE,
       country: VALIDATED_FIELDS.COUNTRY,
       status: VALIDATED_FIELDS.STATUS,
     });
 
-    const { email, password, name, permissions, country, repassword, status } = await schema.validateAsync(req.body);
+    const { email, password, name, permissions, phone, country, repassword, status } = await schema.validateAsync(req.body);
     /* Validation to see if there is already a user with the same email. */
     const validateUser = await userController.findOneCustom({ email: email.toLowerCase() });
     if (validateUser) {
@@ -38,6 +39,7 @@ router.post("/", TOKEN_MIDDLEWARE_ADMIN, async (req, res) => {
       password: await bcrypt.hash(password, salt),
       name,
       permissions,
+      phone,
       country,
       status,
     };
@@ -72,7 +74,7 @@ router.post("/login", async (req, res) => {
   }
 });
 
-router.get("/", TOKEN_MIDDLEWARE_ADMIN, async (req, res) => {
+router.get("/", /* TOKEN_MIDDLEWARE_ADMIN, */ async (req, res) => {
   try {
     const users = await userController.findAll();
     return res.status(MESSAGE_RESPONSE_CODE.OK).json({ users });

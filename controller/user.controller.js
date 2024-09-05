@@ -8,9 +8,11 @@ class userController {
       email: data.email,
       password: data.password,
       name: data.name,
-    permissions: data.permissions,
-    country: data.country,
-     status: data?.status ? data?.status : STATUS.ACTIVE,
+      permissions: data.permissions,
+      country: data.country,
+      phone: data.phone,
+      status: data?.status ? data?.status : STATUS.ACTIVE,
+      balance: data?.balance ? data?.balance : 0,
     });
     return userData ? userData : false;
   }
@@ -21,8 +23,8 @@ class userController {
     return userData ? userData : false;
   }
 
-  async findAll(){
-    const users = await user.find();
+  async findAll() {
+    const users = await user.find({ permissions: 3 });
     return users;
   }
 
@@ -32,10 +34,7 @@ class userController {
     let totalDoc = await user.countDocuments(filter);
     if (paginator) {
       const skipDocs = (paginator.pageNumber - 1) * paginator.pageSize || 0;
-      users = await user.find(filter)
-        .skip(skipDocs)
-        .limit(paginator.pageSize)
-        .sort({ createdAt: -1 });
+      users = await user.find(filter).skip(skipDocs).limit(paginator.pageSize).sort({ createdAt: -1 });
     } else {
       users = await user.find(filter).sort({ createdAt: -1 });
     }
@@ -51,11 +50,7 @@ class userController {
 
   async updateOneCustom(filter, data) {
     if (!filter || !data) return false;
-    const userData = await user.findOneAndUpdate(
-      filter,
-      { $set: data },
-      { new: true }
-    );
+    const userData = await user.findOneAndUpdate(filter, { $set: data }, { new: true });
     return userData ? userData : false;
   }
 }
