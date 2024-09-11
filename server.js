@@ -23,6 +23,7 @@ app.use("/api/v1/user", require("./router/v1/user"));
 app.use("/api/v1/customer", require("./router/v1/customer"));
 app.use("/api/v1/datecourses", require("./router/v1/dateCourses"));
 app.use("/api/v1/sedes", require("./router/v1/sedes"));
+app.use("/api/v1/promo", require("./router/v1/promo"));
 
 /* Bland IA */
 app.use("/api/v1/callsend", call);

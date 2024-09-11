@@ -411,6 +411,8 @@ router.post("/addcustomer", async (req, res) => {
 router.put("/updatecustomer", async (req, res) => {
   try {
     const { name, email, phone, whatsAppProfile, whatsAppNumber, ia, social, status } = req.body;
+
+
     const customerData = await customerController.updateOneCustom(
       { whatsAppNumber: whatsAppNumber },
       {

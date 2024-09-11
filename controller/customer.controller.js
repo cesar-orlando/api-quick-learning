@@ -11,6 +11,7 @@ class customerController {
       whatsAppProfile: data.whatsAppProfile,
       whatsAppNumber: data.whatsAppNumber,
       ia: true,
+      city: data.city,
       social: data?.social ? data?.social : SOCIAL.GOOGLE,
       agent: data?.agent ? data?.agent : {},
       status: data?.status ? data?.status : STATUS_CUSTOMER.PENDIENTE,

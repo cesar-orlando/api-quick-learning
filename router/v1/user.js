@@ -68,19 +68,57 @@ router.post("/login", async (req, res) => {
       return res.status(MESSAGE_RESPONSE_CODE.UNAUTHORIZED).json({ message: MESSAGE_RESPONSE.PASSWORD_ERROR });
     }
     const token = jwt.sign({ _id: user._id, email: user.email, name: user.name }, process.env.JWT_KEY);
-    return res.status(MESSAGE_RESPONSE_CODE.OK).json({ message: MESSAGE_RESPONSE.OK, token });
+    return res.status(MESSAGE_RESPONSE_CODE.OK).json({ message: MESSAGE_RESPONSE.OK, token, user });
   } catch (error) {
     return res.status(MESSAGE_RESPONSE_CODE.BAD_REQUEST).json({ message: error.message });
   }
 });
 
-router.get("/", /* TOKEN_MIDDLEWARE_ADMIN, */ async (req, res) => {
+router.get(
+  "/",
+  /* TOKEN_MIDDLEWARE_ADMIN, */ async (req, res) => {
+    try {
+      const users = await userController.findAll();
+      return res.status(MESSAGE_RESPONSE_CODE.OK).json({ users });
+    } catch (error) {
+      return res.status(MESSAGE_RESPONSE_CODE.BAD_REQUEST).json({ message: error.message });
+    }
+  }
+);
+
+/* EndPoint para traer al usuario con mas ventas. */
+router.get("/top", async (req, res) => {
   try {
-    const users = await userController.findAll();
-    return res.status(MESSAGE_RESPONSE_CODE.OK).json({ users });
+    const user = await userController.topUser();
+    return res.status(MESSAGE_RESPONSE_CODE.OK).json({ user });
   } catch (error) {
     return res.status(MESSAGE_RESPONSE_CODE.BAD_REQUEST).json({ message: error.message });
   }
 });
+
+/* EP para saber los roles de lo usuarios. */
+router.get("/roles", async (req, res) => {
+  try {
+    const roles = await userController.roles();
+    return res.status(MESSAGE_RESPONSE_CODE.OK).json({ roles });
+  } catch (error) {
+    return res.status(MESSAGE_RESPONSE_CODE.BAD_REQUEST).json({ message: error.message });
+  }
+});
+
+router.get(
+  `/:id`,
+  /* TOKEN_MIDDLEWARE_ADMIN, */ async (req, res) => {
+    try {
+      const { id } = req.params;
+      const user = await userController.findOneCustom({ _id: id });
+      return res.status(MESSAGE_RESPONSE_CODE.OK).json({ user });
+    } catch (error) {
+      return res.status(MESSAGE_RESPONSE_CODE.BAD_REQUEST).json({ message: error.message });
+    }
+  }
+);
+
+
 
 module.exports = router;

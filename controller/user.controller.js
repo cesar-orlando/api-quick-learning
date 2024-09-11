@@ -53,6 +53,21 @@ class userController {
     const userData = await user.findOneAndUpdate(filter, { $set: data }, { new: true });
     return userData ? userData : false;
   }
+
+  async topUpBalance(id, amount) {
+    if (!id || !amount) return false;
+    const userData = await user.findOneAndUpdate(
+      { _id: id },
+      { $inc: { balance: amount } },
+      { new: true }
+    );
+    return userData ? userData : false;
+  }
+
+  async topUser(){
+    const data = await user.find({permissions: 3}).sort({balance: -1}).limit(1);
+    return data;
+  }
 }
 
 module.exports = new userController();
