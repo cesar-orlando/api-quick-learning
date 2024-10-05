@@ -8,6 +8,7 @@ const bcrypt = require("bcrypt");
 const { MESSAGE_RESPONSE_CODE, MESSAGE_RESPONSE, VALIDATED_FIELDS } = require("../../lib/constans");
 const userController = require("../../controller/user.controller");
 const { getToken, TOKEN_MIDDLEWARE_ADMIN } = require("../../lib/utils");
+const { base } = require("../../models/customer");
 
 /* Ruta para crear usuarios para el administrador. */
 router.post("/", async (req, res) => {
@@ -119,6 +120,37 @@ router.get(
   }
 );
 
+router.put("/:id", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const schema = Joi.object({
+      email: VALIDATED_FIELDS.EMAIL,
+      name: VALIDATED_FIELDS.NAME,
+      permissions: VALIDATED_FIELDS.PERMISSIONS,
+      phone: VALIDATED_FIELDS.PHONE,
+      country: VALIDATED_FIELDS.COUNTRY,
+      balance: VALIDATED_FIELDS.BALANCE,
+      status: VALIDATED_FIELDS.STATUS,
+    });
+
+    const { email, name, permissions, phone, country, balance, status } = await schema.validateAsync(req.body);
+    const data = {
+      email,
+      name,
+      permissions,
+      phone,
+      country,
+      balance,
+      status,
+    };
+    const user = await userController.updateOneCustom({ _id: id }, data);
+    return res.status(MESSAGE_RESPONSE_CODE.OK).json({ message: MESSAGE_RESPONSE.OK, user });
+  } catch (error) {
+    return res.status(MESSAGE_RESPONSE_CODE.BAD_REQUEST).json({ message: error.message });
+  }
+
+}); 
 
 
 module.exports = router;

@@ -6,10 +6,14 @@ const { MessagingResponse } = require("twilio").twiml;
 const generatePersonalityResponse = require("../../../services/chatgpt");
 const generatePersonalityResponseRealState = require("../../../services/chatgpt_arrowhead");
 const generateAgent = require("../../../services/bot_functions");
+const generateAgentVirtuaVoices = require("../../../services/bot_virtual_voices");
+const agentOfRealState = require("../../../services/realstate/bot_prueba");
+const generateAgentTest = require("../../../services/bot_test");
 const Joi = require("joi");
 const { VALIDATED_FIELDS, MESSAGE_RESPONSE, MESSAGE_RESPONSE_CODE } = require("../../../lib/constans");
 const customerController = require("../../../controller/customer.controller");
 const { dataChatGpt } = require("../../../db/data");
+const { default: axios } = require("axios");
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
@@ -19,15 +23,36 @@ router.post("/", async (req, res) => {
   console.log("req.body --->", req.body);
   const message = await client.messages.create({
     body: req.body.message,
-    from: "whatsapp:+14155238886", // From a valid Twilio number
+    from: "whatsapp:+5213341610749", // From a valid Twilio number
     to: req.body.to, // Text this number
   });
   return res.status(200).json({ message: "Message sent", message });
 });
 
+router.post("/send", async (req, res) => {
+  try {
+    await client.messages.create({
+      contentSid: "HXd5c4612076eea96ec7c7b9a28095b460", //Es de prueba
+      //contentSid: "HX253992d2b3a97cea05b4809360c6f467",
+      contentVariables: JSON.stringify({ 1: "Name" }),
+      from: "whatsapp:+5213341610750",
+      to: "whatsapp:+5213310819409",
+    }).then((message) => {
+      console.log("message --->", message);
+    return res.status(200).json({ message: "Message sent", message });
+
+    }).catch((error) => {
+      console.log("error.message --->", error);
+    });
+  } catch (error) {
+    console.log("error.message --->", error);
+    return res.status(400).json({ message: error.message });
+  }
+});
+
 router.post("/message", async (req, res) => {
   try {
-    if(req.body.MessageType !== 'text'){
+    if (req.body.MessageType !== "text") {
       return res.status(200).json({ message: "Sticker" });
     }
     const validateUser = await customerController.findOneCustom({ whatsAppNumber: req.body.From });
@@ -53,34 +78,6 @@ router.post("/message", async (req, res) => {
   }
 });
 
-router.post("/message-arrowhead", async (req, res) => {
-  try {
-    if(req.body.MessageType !== 'text'){
-      return res.status(200).json({ message: "Sticker" });
-    }
-    const validateUser = await customerController.findOneCustom({ whatsAppNumber: req.body.From });
-    if (validateUser) {
-      console.log("El número ya esta registrado");
-    } else {
-      const data = {
-        name: req.body.ProfileName,
-        email: "",
-        phone: req.body.WaId,
-        whatsAppProfile: req.body.ProfileName,
-        whatsAppNumber: req.body.From,
-      };
-      await customerController.create(data);
-    }
-    const aiResponse = await generatePersonalityResponseRealState(req.body.Body, req.body.From);
-    const twiml = new MessagingResponse();
-    twiml.message(aiResponse);
-    res.type("text/xml").send(twiml.toString());
-  } catch (error) {
-    console.log("message: error.message --->", error.message);
-    return res.status(MESSAGE_RESPONSE_CODE.BAD_REQUEST).json({ message: error.message });
-  }
-});
-
 router.post("/logs-messages", async (req, res) => {
   const messages = await client.messages.list();
 
@@ -95,11 +92,11 @@ router.post("/logs-messages", async (req, res) => {
     };
   });
   let findMessages = filteredMessages.filter((message) => req.body.to === message.to || req.body.to === message.from);
-  return res.status(200).json({ findMessages  });
+  return res.status(200).json({ findMessages });
 });
 
 router.post("/prueba", async (req, res) => {
-  const aiResponse = await generateAgent(req.body.message);
+  const aiResponse = await generateAgentTest(req.body.message, req.body.to);
   return res.status(200).json({ aiResponse });
 });
 
@@ -120,6 +117,61 @@ router.delete("/delete", async (req, res) => {
     return client.messages(message.sid).remove();
   });
   return res.status(200).json({ deleteMessages });
+});
+
+router.post("/message-virtual-voices", async (req, res) => {
+  try {
+    if (req.body.MessageType !== "text") {
+      return res.status(200).json({ message: "Sticker" });
+    }
+    const validateUser = await customerController.findOneCustom({ whatsAppNumber: req.body.From });
+    if (validateUser) {
+      console.log("El número ya esta registrado");
+    } else {
+      const data = {
+        name: req.body.ProfileName,
+        email: "",
+        phone: req.body.WaId,
+        whatsAppProfile: req.body.ProfileName,
+        whatsAppNumber: req.body.From,
+      };
+      await customerController.create(data);
+    }
+    const aiResponse = await agentOfRealState(req.body.Body, req.body.From);
+    if (aiResponse === 1) {
+      let config = {
+        method: "post",
+        maxBodyLength: Infinity,
+        url: "http://localhost:3000/api/v2/whastapp/send",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      };
+     await axios.request(config);
+    }
+    const twiml = new MessagingResponse();
+    twiml.message(aiResponse);
+    res.type("text/xml").send(twiml.toString());
+  } catch (error) {
+    console.log("message: error.message --->", error.message);
+    return res.status(MESSAGE_RESPONSE_CODE.BAD_REQUEST).json({ message: error.message });
+  }
+});
+
+router.post("/send-message", async (req, res) => {
+  try {
+    const message = await client.messages.create({
+      //contentSid: "HXd5c4612076eea96ec7c7b9a28095b460", Es de prueba
+      contentSid: "HX253992d2b3a97cea05b4809360c6f467",
+      contentVariables: JSON.stringify({ 1: "Name" }),
+      from: "whatsapp:+5213341610750",
+      to: "whatsapp:+5214521311888",
+    });
+    return res.status(200).json({ message: "Message sent", message });
+  } catch (error) {
+    console.log("error.message --->", error);
+    return res.status(400).json({ message: error.message });
+  }
 });
 
 module.exports = router;

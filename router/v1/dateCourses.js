@@ -33,4 +33,15 @@ router.get("/", async (req, res) => {
   }
 });
 
+/* Actualizar los cursos que cuando pase de la fecha de hoy le ponga status 2 */
+router.put("/", async (req, res) => {
+  try {
+    const dateCourses = await dateCoursesController.updateStatus();
+    return res.status(200).json({ message: "DateCourses updated", dateCourses });
+  } catch (error) {
+    return res.status(400).json({ message: error.message });
+  }
+}
+);
+
 module.exports = router;

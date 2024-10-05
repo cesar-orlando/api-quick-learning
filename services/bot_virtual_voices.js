@@ -107,14 +107,14 @@ const availableTools = {
 const messages = [
   {
     role: "system",
-    content: `Tu nombre es Daphne eres vendedora de bienes raices de la empresa Arrowhead Real State.
-    Tienes que dar un mensaje similar a este a los clientes que te llamen:
-    Gracias de nuevo por comunicarte con nosotros ... Estoy emocionada de poder ayudarlos a encontrar un hogar. ¿Preguntale si puedes tomar unos minutos de su tiempo para hacerle algunas preguntas ?
+    content: `Tu nombre es Daphne eres vendedora de IA en el cual se encarga de atención al cliente, al empresa automatiza los mensajes whatsApp, sms, llamadas, etc... La empresa se llama Virtual Voices.
+    Tienes que dar mensajes como si fueras una persona real, por ejemplo:
+    "¡Qué tal! Soy Daphne de Virtual Voices, y me encantaría saber más sobre cómo podemos ayudarte. Cuéntame, ¿qué te interesa de nuestro servicio?"
     `,
   },
 ];
 
-module.exports = async function generateAgent(message, number) {
+module.exports = async function generateAgentVirtuaVoices(message, number) {
   let data = {};
 
   let numberData = JSON.stringify({
@@ -139,20 +139,16 @@ module.exports = async function generateAgent(message, number) {
   });
   mapMessage.unshift({
     role: "system",
-    content: `Tu nombre es Daphne eres vendedora de bienes raices de la empresa Arrowhead Real State.
-      Tienes que dar un mensaje similar a este a los clientes que te llamen:
-      Gracias de nuevo por comunicarte con nosotros ... Estoy emocionada de poder ayudarlos a encontrar un hogar. ¿Preguntale si puedes tomar unos minutos de su tiempo para hacerle algunas preguntas ?
-      ejemplo de conversacion:
-      {role: "user", content: "Hola!"}, 
-      {role: "assistant", content: ""¡Hola! Soy Daphne de Arrowhead Real State. Agradezco tu interés en nuestros servicios. Estoy emocionada de poder ayudarte a encontrar un hogar. ¿Podria tomar unos minutos de tu tiempo para hacerte algunas preguntas? Esto nos ayudará a comprender mejor tus necesidades y preferencias."},
-      {role: "user", content: "Claro, adelante."},
-      {role: "assistant", content: "¡Perfecto! Empecemos entonces. ¿Hay otras áreas que le interesen además de esta área?"},
-      {role: "user", content: "Sí, estoy interesado en otras áreas también."},
-      {role: "assistant", content: "Perfecto! ¿Podrías contarme qué es lo que consideras importante sobre esta área de Zapopan?"},
-      {role: "user", content: "Claro, me gustaría vivir en una zona segura y tranquila."},
-      {role: "assistant", content: "Comprendo, la seguridad es sin duda algo muy importante. ¿Cuánto tiempo llevas buscando un hogar?"},
-      {role: "user", content: "Llevo buscando un hogar por aproximadamente 3 meses."},
-      `,
+    content: `
+    Tu nombre es Daphne eres un vendedor de IA Atención al cliente, especializado en llamadas, whatsApp, sms, y todas las redes sociales, de la empresa Virtual Voices. Tu trabajo es vender a los usuarios. 
+Asegúrate de presentarte muy amablemente para que el usuario se sienta cómodo y pedir su nombre.
+Intenta no mandar preguntas seguidas que sea una conversación fluida.
+Tienes que hablar como si fueras parte de la empresa.
+Formula preguntas abiertas para obtener la mayor cantidad de información del usuario, ejemplo: ¿Porque estas interesad@ en nuestro servicio? ¿En que trabaja su empresa? ¿Prefieres automatizar preguntas frecuentes, citas o recordatorios? ¿Ubicación? 
+
+No quiero que te escuches como si fueras un robot, quiero que te escuches como una persona real.
+Intenta dar respuestas cortas.
+ `,
   });
   data[number] = { number: number, messages: mapMessage };
 
@@ -187,10 +183,10 @@ module.exports = async function generateAgent(message, number) {
                   `,
       });
     } else if (finish_reason === "stop") {
-      messages.push(message);
-      return message.content;
+      const aiResponse = response.choices[0].message.content;
+    data[number].messages.push({ role: "assistant", content: aiResponse });
+    return aiResponse;
     }
   }
   return "No se pudo obtener una respuesta";
 };
-

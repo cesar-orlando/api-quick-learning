@@ -30,12 +30,18 @@ app.use("/api/v1/callsend", call);
 app.use("/api/v1/listcalls", listCalls);
 app.use("/api/v1/calldetails", callDetails);
 
+/* Real State */
+app.use("/api/v2/realstate", require("./router/v2/twilio/realState"));
+
 //Twilio
 app.use("/api/v2/voice", voice);
 app.use("/api/v2/whastapp", whatsApp);
 
 //Follow Up Boss
 app.use("/api/v2/followupboss", followupboss);
+
+//Countries
+app.use("/api/v2/countries", require("./router/companies/country"));
 
 
 app.listen(PORT, () => {
