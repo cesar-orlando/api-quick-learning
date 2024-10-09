@@ -58,6 +58,7 @@ router.post("/login", async (req, res) => {
     const schema = Joi.object({
       email: VALIDATED_FIELDS.EMAIL,
       password: VALIDATED_FIELDS.PASSWORD,
+      company: VALIDATED_FIELDS.COMPANY,
     });
     const { email, password } = await schema.validateAsync(req.body);
     const user = await userController.findOneCustom({ email: email.toLowerCase() });
@@ -68,7 +69,9 @@ router.post("/login", async (req, res) => {
     if (!validPassword) {
       return res.status(MESSAGE_RESPONSE_CODE.UNAUTHORIZED).json({ message: MESSAGE_RESPONSE.PASSWORD_ERROR });
     }
-    const token = jwt.sign({ _id: user._id, email: user.email, name: user.name }, process.env.JWT_KEY);
+    const token = jwt.sign({ _id: user._id, email: user.email, name: user.name, company: user.company }, process.env.JWT_KEY);
+    const tokenDecode = jwt.decode(token);
+    console.log("tokenDecode", tokenDecode);
     return res.status(MESSAGE_RESPONSE_CODE.OK).json({ message: MESSAGE_RESPONSE.OK, token, user });
   } catch (error) {
     return res.status(MESSAGE_RESPONSE_CODE.BAD_REQUEST).json({ message: error.message });

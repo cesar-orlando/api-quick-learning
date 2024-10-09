@@ -10,6 +10,7 @@ const UserSchema = new mongoose.Schema(
         phone: String,
         status: Number,
         balance: Number,
+        company: String,
     },
     { timestamps: true }
 );

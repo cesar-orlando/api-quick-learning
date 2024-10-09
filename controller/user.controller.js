@@ -13,6 +13,7 @@ class userController {
       phone: data.phone,
       status: data?.status ? data?.status : STATUS.ACTIVE,
       balance: data?.balance ? data?.balance : 0,
+      company: data.company,
     });
     return userData ? userData : false;
   }
