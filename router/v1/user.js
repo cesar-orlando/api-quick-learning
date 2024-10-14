@@ -70,8 +70,6 @@ router.post("/login", async (req, res) => {
       return res.status(MESSAGE_RESPONSE_CODE.UNAUTHORIZED).json({ message: MESSAGE_RESPONSE.PASSWORD_ERROR });
     }
     const token = jwt.sign({ _id: user._id, email: user.email, name: user.name, company: user.company }, process.env.JWT_KEY);
-    const tokenDecode = jwt.decode(token);
-    console.log("tokenDecode", tokenDecode);
     return res.status(MESSAGE_RESPONSE_CODE.OK).json({ message: MESSAGE_RESPONSE.OK, token, user });
   } catch (error) {
     return res.status(MESSAGE_RESPONSE_CODE.BAD_REQUEST).json({ message: error.message });

@@ -25,6 +25,9 @@ app.use("/api/v1/datecourses", require("./router/v1/dateCourses"));
 app.use("/api/v1/sedes", require("./router/v1/sedes"));
 app.use("/api/v1/promo", require("./router/v1/promo"));
 
+/* Monex */
+app.use("/api/v1/monex", require("./router/v1/monex/customers"));
+
 /* Bland IA */
 app.use("/api/v1/callsend", call);
 app.use("/api/v1/listcalls", listCalls);
