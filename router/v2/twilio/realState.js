@@ -21,89 +21,49 @@ router.post("/", async (req, res) => {
     if (req.body.MessageType !== "text") {
       return res.status(200).json({ message: "Sticker" });
     }
-    const validateUser = await customerController.findOneCustom({ whatsAppNumber: req.body.From });
-    if (validateUser) {
-      console.log("El número ya esta registrado");
+
+    const userNumber = req.body.From;
+
+    // Verifica si messageCounts[userNumber] existe y cancela el timeout si es necesario
+    if (!messageCounts[userNumber]) {
+      messageCounts[userNumber] = { messages: [] };
     } else {
-      const data = {
-        name: req.body.ProfileName,
-        email: "",
-        phone: req.body.WaId,
-        whatsAppProfile: req.body.ProfileName,
-        whatsAppNumber: req.body.From,
-      };
-      await customerController.create(data);
+      clearTimeout(messageCounts[userNumber].timeout);
     }
 
-    
-    // Si ya hay un contador para este número, lo cancelamos
-    if (messageCounts[req.body.From]) {
-      clearTimeout(messageCounts[req.body.From].timeout);
-    }
+    // Agrega el mensaje actual al arreglo de mensajes del usuario
+    messageCounts[userNumber].messages.push(req.body.Body);
 
-    // Incrementamos el contador de mensajes para este número
-    if (!messageCounts[req.body.From]) {
-      messageCounts[req.body.From] = { count: 0 };
-    }
-    messageCounts[req.body.From].count += 1;
+    // Establece el timeout para enviar la respuesta después de 30 segundos
+    messageCounts[userNumber].timeout = setTimeout(async () => {
+      if (messageCounts[userNumber]) {
+        const combinedMessage = messageCounts[userNumber].messages.join(" ");
+        const aiResponse = await agentOfRealState(combinedMessage, userNumber, messageCounts[userNumber].messages.length);
 
-    messageCounts[req.body.From].timeout = setTimeout(async () => {
-      console.log("messageCounts[req.body.From].count --->", messageCounts[req.body.From].count);
-    const aiResponse = await agentOfRealState(req.body.Body, req.body.From, messageCounts[req.body.From].count);
-    if (aiResponse === 1) {
-      let config = {
-        method: "post",
-        maxBodyLength: Infinity,
-        url: "http://localhost:3000/api/v2/realstate/send-message",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        data: { type: aiResponse, number: req.body.From },
-      };
-      await axios.request(config);
-    } else if (aiResponse === 2) {
-      let config = {
-        method: "post",
-        maxBodyLength: Infinity,
-        url: "http://localhost:3000/api/v2/realstate/send-message",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        data: { type: aiResponse, number: req.body.From },
-      };
-      await axios.request(config);
-    }
+        // Enviar el mensaje de respuesta usando la API de Twilio
+        await client.messages.create({
+          body: aiResponse,
+          from: "whatsapp:+5213341610750", // Número de WhatsApp de Twilio
+          to: userNumber,
+        });
 
-    let casaToledo = `🏠 Casa en Condominio Toledo – Zona Nueva Galicia
-    🛏️ 1 recámara en planta baja con baño completo, amplia cocina, área de lavado y patio trasero.
-    🔝 En planta alta: Recámara principal con vestidor y baño, y 2 recámaras secundarias que comparten baño completo.
-    
-    🌳 Amenidades del Condominio Toledo:
-    🌿 Doble área de jardines, 🏊‍♂️ alberca, 🌞 terraza, 🛤️ andador, 🏀 canchas multiusos y 💪 equipos para gimnasio al aire libre.
-    
-    💲 Venta: $4,200,000
-    💲 Renta: $15,500 + mantenimiento.
-    
-    ¡Vive con comodidad y estilo! 🏡✨`;
+        console.log("WhatsApp message sent successfully.");
 
-    let casaNature = `🏡 Natura Bosque Residencial
-    🛏️ 3 recámaras (1 en planta baja)
-    💰 $2,890,000
-    ✔️ Incluye protecciones, boiler y domo en patio
-    🔒 Coto privado con seguridad`;
+        // Envía una respuesta al servidor indicando éxito
+        res.status(200).json({ message: "WhatsApp message sent successfully." });
 
-    let sendMessage = aiResponse === 1 ? casaToledo : aiResponse == 2 ? casaNature : aiResponse;
+        // Elimina el registro de mensajes del usuario una vez que se envía la respuesta
+        delete messageCounts[userNumber];
+      }
+    }, 3000);
 
-    const twiml = new MessagingResponse();
-    twiml.message(sendMessage);
-    res.type("text/xml").send(twiml.toString());
-    messageCounts[req.body.From].count = 0;
-  }, 30000);
   } catch (error) {
-    console.log("message: error.message --->", error.message);
-    return res.status(MESSAGE_RESPONSE_CODE.BAD_REQUEST).json({ message: error.message });
+    console.log("Error:", error.message);
+    res.status(400).json({ message: error.message });
   }
 });
+
+
 
 router.post("/send-message", async (req, res) => {
   try {
