@@ -4,6 +4,7 @@ const Joi = require("joi");
 const excel = require("exceljs");
 const { VALIDATED_FIELDS, MESSAGE_RESPONSE_CODE, MESSAGE_RESPONSE } = require("../../../lib/constans");
 const customerMonexController = require("../../../controller/monex/customers.controller");
+const companiesAnierm = require("../../../db/dataMonex");
 
 /* crear clientes */
 router.post("/", async (req, res) => {
@@ -82,6 +83,31 @@ router.get("/", async (req, res) => {
   }
 });
 
+/* Crear customers con un map de los array. */
+router.post("/customersmap", async (req, res) => {
+  try {
+    // Limit the number of entries to 500
+    const limitedCompanies = companiesAnierm.slice(0, 500);
+
+
+    const formattedData = limitedCompanies.map((item) => ({
+      company: item.empresa,
+      contact: `${item.nombreContacto} ${item.apellidoPaterno} | ${item.cargo} ${item.area}`,
+      phone: item.telefonoFax,
+      email: item.email,
+      address: item.direccion,
+      followup: `${item.paginaWeb} | ${item.giroEspanol}`,
+      status: 4,
+      employee: "Sin asignar",
+    }));
+
+    const data = await customerMonexController.createMany(formattedData);
+    return res.status(MESSAGE_RESPONSE_CODE.OK).json({ message: MESSAGE_RESPONSE.OK, data });
+  } catch (error) {
+    return res.status(MESSAGE_RESPONSE_CODE.BAD_REQUEST).json({ message: error.message });
+  }
+});
+
 /* export en un exceljs todos los clientes.  */
 router.get("/export", async (req, res) => {
   try {
@@ -97,12 +123,12 @@ router.get("/export", async (req, res) => {
 
     // Create a worksheet for each employee
     for (const employee in groupedData) {
-        if (!employee) {
-            console.log('Skipping empty employee name');
-            continue;
-        }
+      if (!employee) {
+        console.log("Skipping empty employee name");
+        continue;
+      }
       const worksheet = workbook.addWorksheet(employee);
-      
+
       worksheet.columns = [
         { header: "NOMBRE DE LA EMPRESA", key: "company", width: 30 },
         { header: "PERSONA DE CONTACTO", key: "contact", width: 30 },
