@@ -9,44 +9,50 @@ const openai = new OpenAI({
 
 module.exports = async function generatePersonalityResponse(message, number) {
   try {
-    // 1. Obtener el historial de mensajes recientes del cliente
-    let response = await axios.post("http://localhost:3000/api/v2/whastapp/logs-messages", {
-      to: number,
-    });
+    // 1. Obtén el contexto inicial desde la base de datos, si es necesario
+    const initialContext = await dataChatGpt(); // Contexto de bienvenida o presentación, si aplica
 
-    // 2. Crear el arreglo de mensajes para OpenAI con el historial y el mensaje combinado
-    let userMessages = response.data.findMessages.reverse().map(msg => ({
+    // 2. Verifica si el número ya está en la base de datos y prepara la configuración para obtener el historial de mensajes
+    let numberData = JSON.stringify({ to: number });
+    let config = {
+      method: "post",
+      maxBodyLength: Infinity,
+      url: "http://localhost:3000/api/v2/whastapp/logs-messages",
+      headers: { "Content-Type": "application/json" },
+      data: numberData,
+    };
+
+    // 3. Obtener el historial de mensajes del usuario
+    const response = await axios.request(config);
+    let mapMessage = response.data.findMessages.reverse().map((msg) => ({
       role: msg.direction === "outbound-api" ? "assistant" : "user",
       content: msg.body,
     }));
 
-    // Agrega el mensaje combinado actual al final del historial
-    userMessages.push({ role: "user", content: message });
-
-    // 3. Configura el mensaje de sistema para OpenAI para dar contexto
-    userMessages.unshift({
+    // 4. Agregar el mensaje combinado actual y el contexto de la escuela de inglés
+    mapMessage.unshift({
       role: "system",
-      content: "Eres Daphne, una asistente amable y servicial que responde preguntas de bienes raíces. Ayuda a los usuarios con información clara y profesional.",
+      content: initialContext || "Eres Daphne, una asistente de QuickLearning, una escuela de inglés. Responde preguntas sobre cursos, horarios, modalidades de estudio (presencial, virtual) y cualquier duda sobre el programa de inglés de manera amable y profesional.",
     });
+    mapMessage.push({ role: "user", content: message });
 
-    // 4. Llama a OpenAI para generar una respuesta basada en el historial y el mensaje combinado
+    // 5. Llama a OpenAI para generar una respuesta basada en el historial y el mensaje combinado
     const completion = await openai.chat.completions.create({
       model: "gpt-4",
-      messages: userMessages,
-      temperature: 0.7, // Menor aleatoriedad para respuestas más consistentes
+      messages: mapMessage,
+      temperature: 0.7,
       top_p: 1,
       frequency_penalty: 0,
       presence_penalty: 0,
     });
 
-    // 5. Obtener el contenido de la respuesta de OpenAI
+    // 6. Obtiene y devuelve la respuesta de OpenAI
     const aiResponse = completion.choices[0].message.content;
-    console.log("Respuesta de OpenAI:", aiResponse); // Verificar la respuesta obtenida
+    console.log("Respuesta de OpenAI:", aiResponse); // Depuración de la respuesta
 
-    // 6. Retornar la respuesta generada por la IA
     return aiResponse;
   } catch (error) {
     console.error("Error en generatePersonalityResponse:", error.message);
-    return "Lo siento, no he podido procesar tu mensaje. Un agente se comunicará contigo pronto.";
+    return "En este momento no puedo responder a tu mensaje, un agente se comunicará contigo pronto.";
   }
 };
