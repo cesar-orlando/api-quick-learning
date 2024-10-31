@@ -4,7 +4,7 @@ const Joi = require("joi");
 const excel = require("exceljs");
 const { VALIDATED_FIELDS, MESSAGE_RESPONSE_CODE, MESSAGE_RESPONSE } = require("../../../lib/constans");
 const customerMonexController = require("../../../controller/monex/customers.controller");
-const companiesAnierm = require("../../../db/dataMonex");
+const { openCorporates, companiesGoogle } = require("../../../db/dataMonex");
 
 /* crear clientes */
 router.post("/", async (req, res) => {
@@ -83,25 +83,43 @@ router.get("/", async (req, res) => {
   }
 });
 
-/* Crear customers con un map de los array. */
 router.post("/customersmap", async (req, res) => {
   try {
-    // Limit the number of entries to 500
-    const limitedCompanies = companiesAnierm.slice(0, 500);
+    const existingCompanies = new Set();
+    const formattedData = [];
 
+    // Fetch existing companies from the database
+    const existingRecords = await customerMonexController.getAll();
+    existingRecords.forEach((record) => {
+      existingCompanies.add(record.company);
+    });
 
-    const formattedData = limitedCompanies.map((item) => ({
-      company: item.empresa,
-      contact: `${item.nombreContacto} ${item.apellidoPaterno} | ${item.cargo} ${item.area}`,
-      phone: item.telefonoFax,
-      email: item.email,
-      address: item.direccion,
-      followup: `${item.paginaWeb} | ${item.giroEspanol}`,
-      status: 4,
-      employee: "Sin asignar",
-    }));
-
+    companiesGoogle.forEach((item) => {
+      if (!existingCompanies.has(item.title)) {
+        existingCompanies.add(item.title);
+        formattedData.push({
+          company: item.title,
+          contact: `${item.nombreContacto} ${item.apellidoPaterno} | ${item.cargo} ${item.area}`,
+          phone: item.phone,
+          email: item.email,
+          address: `${item.address}`,
+          followup: `${item.website} | ${item.categories}`,
+          status: 4,
+          employee: "Sin asignar",
+        });
+      }
+    });
     const data = await customerMonexController.createMany(formattedData);
+    return res.status(MESSAGE_RESPONSE_CODE.OK).json({ message: MESSAGE_RESPONSE.OK, companies: data });
+  } catch (error) {
+    return res.status(MESSAGE_RESPONSE_CODE.BAD_REQUEST).json({ message: error.message });
+  }
+});
+
+/* borrar customers sin employee que tengan sin asignar */
+router.delete("/delete", async (req, res) => {
+  try {
+    const data = await customerMonexController.deleteMany();
     return res.status(MESSAGE_RESPONSE_CODE.OK).json({ message: MESSAGE_RESPONSE.OK, data });
   } catch (error) {
     return res.status(MESSAGE_RESPONSE_CODE.BAD_REQUEST).json({ message: error.message });

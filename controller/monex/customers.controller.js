@@ -54,6 +54,12 @@ class customerMonexController{
         const customersData = await customers.insertMany(data);
         return customersData ? customersData : false;
     }
+
+    /* borrar todas las que tengan en employee sin asignar */
+    async deleteMany(){
+        const data = await customers.deleteMany({ employee: "Sin asignar" });
+        return data;
+    }
 }
 
 module.exports = new customerMonexController();
