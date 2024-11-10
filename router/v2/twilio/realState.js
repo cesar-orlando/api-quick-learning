@@ -1,19 +1,15 @@
 require("dotenv").config();
 const express = require("express");
 const router = express.Router();
-const { MessagingResponse } = require("twilio").twiml;
 
 const generatePersonalityResponseRealState = require("../../../services/chatgpt_arrowhead");
 const customerController = require("../../../controller/customer.controller");
 const generateAgent = require("../../../services/bot_functions");
 const agentOfRealState = require("../../../services/realstate/bot_prueba");
 const { MESSAGE_RESPONSE_CODE } = require("../../../lib/constans");
-const { default: axios } = require("axios");
 
-const accountSid = process.env.TWILIO_ACCOUNT_SID;
-const authToken = process.env.TWILIO_AUTH_TOKEN;
-const client = require("twilio")(accountSid, authToken);
-
+const { MessagingResponse } = require("twilio").twiml;
+const client = require("twilio")(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 let messageCounts = {};
 
 router.post("/", async (req, res) => {
@@ -24,18 +20,25 @@ router.post("/", async (req, res) => {
 
     const userNumber = req.body.From;
 
-    // Verifica si messageCounts[userNumber] existe y cancela el timeout si es necesario
+    // Responder al webhook de Twilio inmediatamente para evitar duplicados
+    res.status(200).json({ message: "Mensaje recibido y en proceso." });
+
+    // Si no existe en messageCounts, inicializamos su registro
     if (!messageCounts[userNumber]) {
-      messageCounts[userNumber] = { messages: [] };
-    } else {
-      clearTimeout(messageCounts[userNumber].timeout);
+      messageCounts[userNumber] = { messages: [], isProcessing: false };
     }
 
-    // Agrega el mensaje actual al arreglo de mensajes del usuario
+    // Si el mensaje ya está en proceso, salimos para evitar duplicados
+    if (messageCounts[userNumber].isProcessing) return;
+
+    // Marcar el mensaje como en proceso
+    messageCounts[userNumber].isProcessing = true;
+
+    // Agregar el mensaje actual al registro del usuario
     messageCounts[userNumber].messages.push(req.body.Body);
 
-    // Establece el timeout para enviar la respuesta después de 30 segundos
-    messageCounts[userNumber].timeout = setTimeout(async () => {
+    // Configurar el temporizador para consolidar los mensajes después de 3 segundos (en lugar de 30 para pruebas)
+    setTimeout(async () => {
       if (messageCounts[userNumber]) {
         const combinedMessage = messageCounts[userNumber].messages.join(" ");
         const aiResponse = await agentOfRealState(combinedMessage, userNumber, messageCounts[userNumber].messages.length);
@@ -49,19 +52,17 @@ router.post("/", async (req, res) => {
 
         console.log("WhatsApp message sent successfully.");
 
-        // Envía una respuesta al servidor indicando éxito
-        res.status(200).json({ message: "WhatsApp message sent successfully." });
-
-        // Elimina el registro de mensajes del usuario una vez que se envía la respuesta
+        // Limpiar el registro del usuario después de enviar la respuesta
         delete messageCounts[userNumber];
       }
-    }, 3000);
+    }, 3000); // 3 segundos para pruebas (cambiar a 30000 para producción)
 
   } catch (error) {
     console.log("Error:", error.message);
     res.status(400).json({ message: error.message });
   }
 });
+
 
 
 

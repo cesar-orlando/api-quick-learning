@@ -1,60 +1,58 @@
-const axios = require("axios");
+require("dotenv").config();
 const OpenAI = require("openai");
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const { default: axios } = require("axios");
+const { dataRealStateMxn } = require("../../db/realstate_mxn");
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
-// Funciones de información de propiedades
-async function getHouseInfo() {
-  return "🏠 Casa Toledo: detalles...";
-}
 
-async function getQuestionsOfArea() {
-  return "🏡 Casa Nature Bosque: detalles...";
-}
-
-const tools = {
-  getHouseInfo,
-  getQuestionsOfArea,
-};
-
-module.exports = async function agentOfRealState(message, number, count) {
+module.exports = async function agentOfRealState(message, number) {
   try {
-    // 1. Obtén el historial de mensajes recientes del cliente
-    let response = await axios.post("http://localhost:3000/api/v2/whastapp/logs-messages", {
-      to: number,
-    });
+    // 1. Obtén el contexto inicial desde la base de datos, si es necesario
+    const initialContext = await dataRealStateMxn(); // Contexto de bienvenida o presentación, si aplica
 
-    // 2. Crear el arreglo de mensajes de OpenAI con el historial y el mensaje combinado
-    let userMessages = response.data.findMessages.reverse().slice(-count).map(msg => ({
+    // 2. Verifica si el número ya está en la base de datos y prepara la configuración para obtener el historial de mensajes
+    let numberData = JSON.stringify({ to: number });
+    let config = {
+      method: "post",
+      maxBodyLength: Infinity,
+      url: "http://localhost:3000/api/v2/whastapp/logs-messages",
+      headers: { "Content-Type": "application/json" },
+      data: numberData,
+    };
+
+    // 3. Obtener el historial de mensajes del usuario
+    const response = await axios.request(config);
+    let mapMessage = response.data.findMessages.reverse().map((msg) => ({
       role: msg.direction === "outbound-api" ? "assistant" : "user",
       content: msg.body,
     }));
 
-    userMessages.push({ role: "user", content: message }); // Agregar el mensaje combinado al final
-
-    userMessages.unshift({
+    // 4. Agregar el mensaje combinado actual y el contexto de la escuela de inglés
+    mapMessage.unshift({
       role: "system",
-      content: "Eres Daphne, una agente de ventas de bienes raíces amigable y servicial.",
+      content: initialContext || "Tu nombre es Daphne eres vendedora de bienes raices de la empresa Arrowhead Real State. Gracia por comunicarte con nosotros y pides el nombre del cliente.",
     });
+    mapMessage.push({ role: "user", content: message });
 
-    // 3. Enviar el historial y el mensaje a OpenAI
-    const aiResponse = await openai.chat.completions.create({
+    // 5. Llama a OpenAI para generar una respuesta basada en el historial y el mensaje combinado
+    const completion = await openai.chat.completions.create({
       model: "gpt-4",
-      messages: userMessages,
+      messages: mapMessage,
+      temperature: 0.7,
+      top_p: 1,
+      frequency_penalty: 0,
+      presence_penalty: 0,
     });
 
-    const aiMessage = aiResponse.choices[0].message.content;
-    console.log("AI Response:", aiMessage); // Verificar la respuesta de IA
+    // 6. Obtiene y devuelve la respuesta de OpenAI
+    const aiResponse = completion.choices[0].message.content;
+    console.log("Respuesta de OpenAI:", aiResponse); // Depuración de la respuesta
 
-    // 4. Determinar si es necesario llamar a una función específica
-    if (aiMessage.includes("Toledo")) {
-      return tools.getHouseInfo();
-    } else if (aiMessage.includes("Nature")) {
-      return tools.getQuestionsOfArea();
-    } else {
-      return aiMessage; // Devolver la respuesta directa de OpenAI si no es una función específica
-    }
+    return aiResponse;
   } catch (error) {
-    console.error("Error en agentOfRealState:", error.message);
-    return "Lo siento, hubo un problema al procesar tu solicitud. Por favor intenta de nuevo.";
+    console.error("Error en generatePersonalityResponse:", error.message);
+    return ;
   }
 };

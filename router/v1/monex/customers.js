@@ -4,7 +4,7 @@ const Joi = require("joi");
 const excel = require("exceljs");
 const { VALIDATED_FIELDS, MESSAGE_RESPONSE_CODE, MESSAGE_RESPONSE } = require("../../../lib/constans");
 const customerMonexController = require("../../../controller/monex/customers.controller");
-const { openCorporates, companiesGoogle } = require("../../../db/dataMonex");
+const { openCorporates, companiesGoogle, googleBajaCalifornia, googleNuevoLeon } = require("../../../db/dataMonex");
 
 /* crear clientes */
 router.post("/", async (req, res) => {
@@ -94,7 +94,7 @@ router.post("/customersmap", async (req, res) => {
       existingCompanies.add(record.company);
     });
 
-    companiesGoogle.forEach((item) => {
+    googleNuevoLeon.forEach((item) => {
       if (!existingCompanies.has(item.title)) {
         existingCompanies.add(item.title);
         formattedData.push({
@@ -105,12 +105,12 @@ router.post("/customersmap", async (req, res) => {
           address: `${item.address}`,
           followup: `${item.website} | ${item.categories}`,
           status: 4,
-          employee: "Sin asignar",
+          employee: "Nuevo Leon",
         });
       }
     });
     const data = await customerMonexController.createMany(formattedData);
-    return res.status(MESSAGE_RESPONSE_CODE.OK).json({ message: MESSAGE_RESPONSE.OK, companies: data });
+    return res.status(MESSAGE_RESPONSE_CODE.OK).json({ message: MESSAGE_RESPONSE.OK, number:data.length, companies: data });
   } catch (error) {
     return res.status(MESSAGE_RESPONSE_CODE.BAD_REQUEST).json({ message: error.message });
   }
