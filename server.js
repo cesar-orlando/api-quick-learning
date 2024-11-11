@@ -27,6 +27,8 @@ app.use("/api/v1/promo", require("./router/v1/promo"));
 
 /* Monex */
 app.use("/api/v1/monex", require("./router/v1/monex/customers"));
+app.use("/api/v1/monex/companies", require("./router/v1/monex/companies"));
+app.use("/api/v1/monex/employees", require("./router/v1/monex/employees"));
 
 /* Bland IA */
 app.use("/api/v1/callsend", call);
