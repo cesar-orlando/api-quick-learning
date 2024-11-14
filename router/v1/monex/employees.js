@@ -7,6 +7,7 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const EmployeeController = require("../../../controller/monex/employee.controller");
 const { MESSAGE_RESPONSE_CODE } = require("../../../lib/constans");
+const sendEmailWithExcelLink = require("../../../services/monex/sendEmailWithExcelLink");
 
 // Ruta para crear un nuevo empleado
 router.post("/create", async (req, res) => {
@@ -146,6 +147,25 @@ router.get("/export-employees-companies", async (req, res) => {
       return res.status(500).json({ message: error.message });
     }
   });
+
+  // Ruta POST para enviar el correo con el enlace de descarga
+router.post("/send-excel-email", async (req, res) => {
+  const { toEmail, downloadUrl } = req.body;
+
+  if (!toEmail || !downloadUrl) {
+    return res.status(400).json({ message: "Se requiere 'toEmail' y 'downloadUrl' en el cuerpo de la solicitud." });
+  }
+
+  // Llamada a la función para enviar el correo
+  const result = await sendEmailWithExcelLink(toEmail, downloadUrl);
+
+  if (result.success) {
+    res.status(200).json({ message: "Correo enviado correctamente" });
+  } else {
+    res.status(500).json({ message: "Error al enviar el correo", error: result.message });
+  }
+});
+
 // Ruta para obtener todas las empresas de un empleado específico
 router.get("/:id/companies", async (req, res) => {
   const companies = await EmployeeController.getCompaniesByEmployee(req.params.id);
