@@ -61,14 +61,7 @@ router.get("/employees-with-companies", async (req, res) => {
   }
 });
 
-// Ruta para traer un solo empleado con sus empresas asociadas
-router.get("/:id", async (req, res) => {
-  const employee = await EmployeeController.getByIdWithCompanies(req.params.id);
-  if (!employee) {
-    return res.status(404).json({ message: "Empleado no encontrado" });
-  }
-  res.status(200).json(employee);
-});
+
 
 router.get("/export-employees-companies", async (req, res) => {
     try {
@@ -173,6 +166,15 @@ router.post("/send-excel-email", async (req, res) => {
   } else {
     res.status(500).json({ message: "Error al enviar el correo", error: result.message });
   }
+});
+
+// Ruta para traer un solo empleado con sus empresas asociadas
+router.get("/:id", async (req, res) => {
+  const employee = await EmployeeController.getByIdWithCompanies(req.params.id);
+  if (!employee) {
+    return res.status(404).json({ message: "Empleado no encontrado" });
+  }
+  res.status(200).json(employee);
 });
 
 // Ruta para obtener todas las empresas de un empleado específico
