@@ -89,13 +89,13 @@ class CompanyController {
   // Método para agregar múltiples registros con validación y un employeeId asignado
   async addMultipleCompanies(companies, employeeId) {
     if (!companies || companies.length === 0) {
-        return { error: "No se proporcionaron registros para agregar" };
+      return { error: "No se proporcionaron registros para agregar" };
     }
 
     // Verifica si el empleado existe antes de agregar los registros
     const employee = await Employee.findById(employeeId);
     if (!employee) {
-        return { error: "Empleado no encontrado" };
+      return { error: "Empleado no encontrado" };
     }
 
     // Conjunto de nombres de empresas existentes para evitar duplicados
@@ -105,38 +105,43 @@ class CompanyController {
     // Recupera las empresas existentes de la base de datos
     const existingRecords = await Company.find();
     existingRecords.forEach((record) => {
-        existingCompanies.add(record.company);
+      existingCompanies.add(record.company);
     });
 
     // Transforma y procesa cada registro en `companies`
     for (const item of companies) {
-        if (!existingCompanies.has(item.title)) {
-            // Formatea el dato original al formato necesario para la base de datos
-            const companyData = {
-                company: item.title || item.name || "", // Asigna nombre vacío si no viene
-                contact: `${item.nombreContacto || ""} ${item.apellidoPaterno || ""}  ${item.cargo || ""} ${item.area || ""}` || item.contact || "", // Asigna contacto vacío si no viene
-                phone: item.phone || "", // Asigna teléfono vacío si no viene
-                email: item.email || "", // Asigna email vacío si no viene
-                address: item.address || `${item.street || ""}, ${item.city || ""}, ${item.state || ""}, ${item.countryCode || ""}`,
-                followup: `${item.website || ""} ${item.categories ? item.categories.join(", ") : ""}` || item.followup || "", // Asigna seguimiento vacío si no viene
-                status: "PENDIENTE", // Establece el estado predeterminado
-                employee: employeeId
-            };
+      if (!existingCompanies.has(item.title)) {
+        // Formatea el dato original al formato necesario para la base de datos
+        const companyData = {
+          company: item.title || item.name || "", // Asigna nombre vacío si no viene
+          contact: `${item.nombreContacto || ""} ${item.apellidoPaterno || ""}  ${item.cargo || ""} ${item.area || ""}` || item.contact || "", // Asigna contacto vacío si no viene
+          phone: item.phone || "", // Asigna teléfono vacío si no viene
+          email: item.email || "", // Asigna email vacío si no viene
+          address: item.address || `${item.street || ""}, ${item.city || ""}, ${item.state || ""}, ${item.countryCode || ""}`,
+          followup: `${item.website || ""} ${item.categories ? item.categories.join(", ") : ""}` || item.followup || "", // Asigna seguimiento vacío si no viene
+          status: "PENDIENTE", // Establece el estado predeterminado
+          employee: employeeId,
+        };
 
-            // Agrega el nombre de la empresa al conjunto y la empresa formateada a la lista
-            existingCompanies.add(companyData.company);
-            formattedData.push(companyData);
-        }
+        // Agrega el nombre de la empresa al conjunto y la empresa formateada a la lista
+        existingCompanies.add(companyData.company);
+        formattedData.push(companyData);
+      }
     }
 
     try {
-        // Inserta todas las empresas válidas en la base de datos
-        const result = await Company.insertMany(formattedData);
-        return result;
+      // Inserta todas las empresas válidas en la base de datos
+      const result = await Company.insertMany(formattedData);
+      return result;
     } catch (error) {
-        return { error: error.message };
+      return { error: error.message };
     }
-}
+  }
+
+  async findCompanyById(id) {
+    const company = await Company.findById(id).populate("employee");
+    return company;
+  }
 }
 
 module.exports = new CompanyController();

@@ -40,6 +40,15 @@ router.post("/create", async (req, res) => {
   }
 });
 
+// Ruta para obtener una empresa por ID
+router.get("/:id", async (req, res) => {
+  const company = await CompanyController.findCompanyById(req.params.id);
+  if (!company) {
+    return res.status(MESSAGE_RESPONSE_CODE.NOT_FOUND).json({ message: "Empresa no encontrada" });
+  }
+  res.status(MESSAGE_RESPONSE_CODE.OK).json(company);
+});
+
 // Ruta para obtener todas las empresas
 router.get("/all", async (req, res) => {
   const companies = await CompanyController.getAll();
