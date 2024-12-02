@@ -43,6 +43,13 @@ class EmployeeController {
         select: "company contact phone email address followup status createdAt updatedAt", // Campos de `Company` que queremos incluir
       });
     }
+    
+    async getByIdWithCompanies(employeeId) {
+      return await Employee.findById(employeeId).populate({
+        path: "companies",
+        select: "company contact phone email address followup status createdAt updatedAt", // Campos de `Company` que queremos incluir
+      });
+    }
 }
 
 module.exports = new EmployeeController();

@@ -61,6 +61,15 @@ router.get("/employees-with-companies", async (req, res) => {
   }
 });
 
+// Ruta para traer un solo empleado con sus empresas asociadas
+router.get("/:id", async (req, res) => {
+  const employee = await EmployeeController.getByIdWithCompanies(req.params.id);
+  if (!employee) {
+    return res.status(404).json({ message: "Empleado no encontrado" });
+  }
+  res.status(200).json(employee);
+});
+
 router.get("/export-employees-companies", async (req, res) => {
     try {
       // Obtiene los IDs de empleados desde los parámetros de consulta
