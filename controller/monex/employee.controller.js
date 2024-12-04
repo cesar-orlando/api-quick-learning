@@ -50,6 +50,20 @@ class EmployeeController {
         select: "company contact phone email address followup status createdAt updatedAt", // Campos de `Company` que queremos incluir
       });
     }
+
+    // Metodo para actualizar un empleado
+    async update(employeeId, data) {
+      const employee = await Employee.findByIdAndUpdate(employeeId,
+         {
+        $set: {
+          name: data.name.toUpperCase(),
+          phone: data.phone,
+          email: data.email,
+          status: data.status,
+        },
+      }, { new: true });
+      return employee;
+    }
 }
 
 module.exports = new EmployeeController();
