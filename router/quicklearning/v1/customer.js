@@ -110,4 +110,17 @@ router.get("/downloadfile", async (req, res) => {
   }
 });
 
+/* EP details client with id */
+router.get("/details/:id", async (req, res) => {
+  try {
+    const customer = await customerController.getByIDCustom({ _id: req.params.id });
+    if (!customer) {
+      return res.status(MESSAGE_RESPONSE_CODE.BAD_REQUEST).json({ message: "Customer not found" });
+    }
+    return res.status(MESSAGE_RESPONSE_CODE.OK).json({ message: "Customer found", customer });
+  } catch (error) {
+    console.log(error);
+  }
+});
+
 module.exports = router;

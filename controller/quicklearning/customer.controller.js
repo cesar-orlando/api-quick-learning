@@ -31,6 +31,9 @@ class customerQLController {
   async getAllCustom() {
     return await customer.find().sort({ date: -1 });
   }
+  async getByIDCustom(id) {
+    return await customer.findById(id);
+  }
 }
 
 module.exports = new customerQLController();
