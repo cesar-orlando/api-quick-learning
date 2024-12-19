@@ -1,0 +1,36 @@
+const { STATUS, STATUS_CUSTOMER, SOCIAL } = require("../../lib/constans");
+const customer = require("../../models/quicklearning/customer");
+
+class customerQLController {
+  async create(data) {
+    if (!data) return false;
+    const customerData = await customer.create({
+      name: data.name,
+      email: data.email,
+      phone: data.phone,
+      whatsAppProfile: data.whatsAppProfile,
+      whatsAppNumber: data.whatsAppNumber,
+      ia: true,
+      city: data.city,
+      social: data?.social ? data?.social : SOCIAL.GOOGLE,
+      agent: data?.agent ? data?.agent : {},
+      status: data?.status ? data?.status : STATUS_CUSTOMER.PENDIENTE,
+    });
+    return customerData ? customerData : false;
+  }
+  async updateOneCustom(filter, data) {
+    if (!filter || !data) return false;
+    const customerData = await customer.findOneAndUpdate(filter, { $set: data }, { new: true });
+    return customerData ? customerData : false;
+  }
+  async findOneCustom(filter) {
+    if (!filter) return false;
+    const customerData = await customer.findOne(filter);
+    return customerData ? customerData : false;
+  }
+  async getAllCustom() {
+    return await customer.find().sort({ date: -1 });
+  }
+}
+
+module.exports = new customerQLController();

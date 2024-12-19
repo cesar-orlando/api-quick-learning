@@ -25,6 +25,9 @@ app.use("/api/v1/datecourses", require("./router/v1/dateCourses"));
 app.use("/api/v1/sedes", require("./router/v1/sedes"));
 app.use("/api/v1/promo", require("./router/v1/promo"));
 
+/* Quick Learning */
+app.use("/api/v1/quicklearning", require("./router/quicklearning/v1/customer"));
+
 /* Monex */
 app.use("/api/v1/monex", require("./router/v1/monex/customers"));
 app.use("/api/v1/monex/companies", require("./router/v1/monex/companies"));

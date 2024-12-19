@@ -1,0 +1,113 @@
+const { Router } = require("express");
+const router = Router();
+const excel = require("exceljs");
+const customerController = require("../../../controller/quicklearning/customer.controller");
+const { MESSAGE_RESPONSE_CODE, MESSAGE_RESPONSE } = require("../../../lib/constans");
+
+/* Show all clients */
+router.get("/list", async (req, res) => {
+  try {
+    const result = await customerController.getAllCustom();
+    res.status(MESSAGE_RESPONSE_CODE.OK).json({ message: MESSAGE_RESPONSE.OK, total: result.length, customers: result });
+  } catch (error) {
+    res.json({
+      code: MESSAGE_RESPONSE_CODE.ERROR,
+      message: MESSAGE_RESPONSE.ERROR,
+    });
+  }
+});
+
+/* EP to create a client */
+router.post("/add", async (req, res) => {
+  try {
+    const result = await customerController.create(req.body);
+    res.status(MESSAGE_RESPONSE_CODE.OK).json({ message: MESSAGE_RESPONSE.OK, customer: result });
+  } catch (error) {
+    res.json({
+      code: MESSAGE_RESPONSE_CODE.ERROR,
+      message: MESSAGE_RESPONSE.ERROR,
+    });
+  }
+});
+
+/* EP to update a client */
+router.put("/updatecustomer", async (req, res) => {
+  try {
+    const { name, email, phone, whatsAppProfile, whatsAppNumber, ia, social, status } = req.body;
+
+    const customerData = await customerController.updateOneCustom(
+      { whatsAppNumber: whatsAppNumber },
+      {
+        name: name,
+        email: email,
+        phone: phone,
+        whatsAppProfile: whatsAppProfile,
+        whatsAppNumber: whatsAppNumber,
+        ia: ia,
+        social: social,
+        status: status,
+      }
+    );
+    if (!customerData) {
+      return res.status(MESSAGE_RESPONSE_CODE.BAD_REQUEST).json({ message: "Customer not found" });
+    }
+    return res.status(MESSAGE_RESPONSE_CODE.OK).json({ message: "Customer updated", customerData });
+  } catch (error) {
+    console.log(error);
+  }
+});
+
+/* EP to download excel from clients. */
+router.get("/downloadfile", async (req, res) => {
+  try {
+    const customers = await customerController.getAllCustom();
+    const workbook = new excel.Workbook();
+    const worksheet = workbook.addWorksheet("Customers");
+
+    worksheet.columns = [
+      { header: "Name", key: "name", width: 30 },
+      { header: "Email", key: "email", width: 30 },
+      { header: "Phone", key: "phone", width: 30 },
+      { header: "WhatsApp Profile", key: "whatsAppProfile", width: 30 },
+      { header: "WhatsApp Number", key: "whatsAppNumber", width: 30 },
+      { header: "IA", key: "ia", width: 30 },
+      { header: "Social", key: "social", width: 30 },
+      { header: "Country", key: "country", width: 30 },
+      { header: "Status", key: "status", width: 30 },
+    ];
+
+    // Apply styles to headers
+    worksheet.getRow(1).eachCell((cell) => {
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FF008CFF" },
+      };
+      cell.font = {
+        color: { argb: "FFFFFFFF" },
+        bold: true,
+        size: 12,
+      };
+      cell.border = {
+        top: { style: "thin", color: { argb: "FF008CFF" } },
+        left: { style: "thin", color: { argb: "FF008CFF" } },
+        bottom: { style: "thin", color: { argb: "FF008CFF" } },
+        right: { style: "thin", color: { argb: "FF008CFF" } },
+      };
+    });
+
+    customers.forEach((customer) => {
+      worksheet.addRow(customer);
+    });
+    const fileName = "customers.xlsx";
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", "attachment; filename=" + fileName);
+    return workbook.xlsx.write(res).then(function () {
+      res.end();
+    });
+  } catch (error) {
+    console.log(error);
+  }
+});
+
+module.exports = router;
