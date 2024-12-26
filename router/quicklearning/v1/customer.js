@@ -33,19 +33,20 @@ router.post("/add", async (req, res) => {
 /* EP to update a client */
 router.put("/updatecustomer", async (req, res) => {
   try {
-    const { name, email, phone, whatsAppProfile, whatsAppNumber, ia, social, status } = req.body;
+    const { name, phone, comments, classification, status, visitDetails, enrollmentDetails, ia, user } = req.body;
 
     const customerData = await customerController.updateOneCustom(
-      { whatsAppNumber: whatsAppNumber },
+      { phone: phone },
       {
         name: name,
-        email: email,
         phone: phone,
-        whatsAppProfile: whatsAppProfile,
-        whatsAppNumber: whatsAppNumber,
-        ia: ia,
-        social: social,
+        comments: comments,
+        classification: classification,
         status: status,
+        visitDetails: visitDetails,
+        enrollmentDetails: enrollmentDetails,
+        ia: ia,
+        user: user,
       }
     );
     if (!customerData) {
@@ -110,6 +111,53 @@ router.get("/downloadfile", async (req, res) => {
   }
 });
 
+/* EP para agregar muchos clientes */
+router.post("/addmany", async (req, res) => {
+  console.log("entra aqui");
+  try {
+    const customers = req.body;
+    let data = [];
+    customers.forEach((customer) => {
+      console.log("customer", customer);
+      data.push({
+        name: customer.name,
+        phone: customer.phone,
+        comments: customer.comments ? customer.comments : "",
+        classification: "Prospecto",
+        status: "Segunda llamada",
+        visitDetails: {
+          branch: customer.visitDetails?.branch ? customer.visitDetails.branch : "",
+          date: customer.visitDetails?.date ? customer.visitDetails.date : "",
+          time: customer.visitDetails?.time ? customer.visitDetails.time : "",
+        },
+        enrollmentDetails: {
+          consecutive: customer.enrollmentDetails?.consecutive ? customer.enrollmentDetails.consecutive : "",
+          course: customer.enrollmentDetails?.course ? customer.enrollmentDetails.course : "",
+          modality: customer.enrollmentDetails?.modality ? customer.enrollmentDetails.modality : "",
+          state: customer.enrollmentDetails?.state ? customer.enrollmentDetails.state : "",
+          email: customer.enrollmentDetails?.email ? customer.enrollmentDetails.email : "",
+          source: customer.enrollmentDetails?.source ? customer.enrollmentDetails.source : "",
+          paymentType: customer.enrollmentDetails?.paymentType ? customer.enrollmentDetails.paymentType : "",
+        },
+        ia: true,
+        user: customer.agent ? customer.agent : "676d66af22932ac7c09d787f",
+      });
+    });
+
+    console.log("data to insert", data); // Verifica los datos antes de insertarlos
+
+    const result = await customerController.createMany(data);
+    console.log("result", result);
+    res.status(MESSAGE_RESPONSE_CODE.OK).json({ message: MESSAGE_RESPONSE.OK, customers: result });
+  } catch (error) {
+    console.log("error", error); // Agrega un log para el error
+    res.json({
+      code: MESSAGE_RESPONSE_CODE.ERROR,
+      message: MESSAGE_RESPONSE.ERROR,
+    });
+  }
+});
+
 /* EP details client with id */
 router.get("/details/:id", async (req, res) => {
   try {
@@ -120,6 +168,33 @@ router.get("/details/:id", async (req, res) => {
     return res.status(MESSAGE_RESPONSE_CODE.OK).json({ message: "Customer found", customer });
   } catch (error) {
     console.log(error);
+  }
+});
+
+/* EP Update Customer */
+router.put("/update/:id", async (req, res) => {
+  try {
+    const customer = await customerController.updateOneCustom(
+      { _id: req.params.id },
+      {
+        name: req.body.name,
+        phone: req.body.phone,
+        comments: req.body.comments,
+        classification: req.body.classification,
+        status: req.body.status,
+        visitDetails: req.body.visitDetails,
+        enrollmentDetails: req.body.enrollmentDetails,
+        ia: req.body.ia,
+        user: req.body.user,
+      }
+    );
+    if (!customer) {
+      return res.status(MESSAGE_RESPONSE_CODE.BAD_REQUEST).json({ message: "Customer not found" });
+    }
+    return res.status(MESSAGE_RESPONSE_CODE.OK).json({ message: "Customer updated", customer });
+  } catch (error) {
+    console.log(error);
+    return res.status(MESSAGE_RESPONSE_CODE.BAD_REQUEST).json({ message: "Error" });
   }
 });
 

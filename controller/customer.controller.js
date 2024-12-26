@@ -1,6 +1,5 @@
 const { STATUS, STATUS_CUSTOMER, SOCIAL } = require("../lib/constans");
-const customer = require("../models/customer");
-
+const {customer} = require("../models/quicklearning/customer");
 class customerController {
   async create(data) {
     if (!data) return false;

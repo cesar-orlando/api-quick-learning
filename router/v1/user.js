@@ -8,7 +8,7 @@ const bcrypt = require("bcrypt");
 const { MESSAGE_RESPONSE_CODE, MESSAGE_RESPONSE, VALIDATED_FIELDS } = require("../../lib/constans");
 const userController = require("../../controller/user.controller");
 const { getToken, TOKEN_MIDDLEWARE_ADMIN } = require("../../lib/utils");
-const { base } = require("../../models/customer");
+const { base } = require("../../models/quicklearning/customer");
 
 /* Ruta para crear usuarios para el administrador. */
 router.post("/", async (req, res) => {
