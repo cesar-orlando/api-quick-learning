@@ -47,7 +47,7 @@ class customerQLController {
   }
 
   async getAllCustom() {
-    return await customer.find().populate("user").sort({ creationDate: -1 });
+    return await customer.find().sort({ creationDate: -1 });
   }
 
   async getByIDCustom(id) {
