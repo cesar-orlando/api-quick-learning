@@ -58,7 +58,7 @@ router.post("/login", async (req, res) => {
     const schema = Joi.object({
       email: VALIDATED_FIELDS.EMAIL,
       password: VALIDATED_FIELDS.PASSWORD,
-      company: VALIDATED_FIELDS.COMPANY,
+      //company: VALIDATED_FIELDS.COMPANY,
     });
     const { email, password } = await schema.validateAsync(req.body);
     const user = await userController.findOneCustom({ email: email.toLowerCase() });
@@ -76,17 +76,25 @@ router.post("/login", async (req, res) => {
   }
 });
 
-router.get(
-  "/",
-  /* TOKEN_MIDDLEWARE_ADMIN, */ async (req, res) => {
-    try {
-      const users = await userController.findAll();
-      return res.status(MESSAGE_RESPONSE_CODE.OK).json({ users });
-    } catch (error) {
-      return res.status(MESSAGE_RESPONSE_CODE.BAD_REQUEST).json({ message: error.message });
-    }
+router.post("/verify-token", (req, res) => {
+  const { token } = req.body;
+  try {
+    const regex = token.replace("Bearer ", "");
+    const validation = jwt.verify(regex.toString(), process.env.JWT_KEY);
+    res.status(200).json({ valid: true, data: validation });
+  } catch (e) {
+    res.status(401).json({ valid: false, error: e.message });
   }
-);
+});
+
+router.get("/", async (req, res) => {
+  try {
+    const users = await userController.findAll();
+    return res.status(MESSAGE_RESPONSE_CODE.OK).json({ users });
+  } catch (error) {
+    return res.status(MESSAGE_RESPONSE_CODE.BAD_REQUEST).json({ message: error.message });
+  }
+});
 
 /* EndPoint para traer al usuario con mas ventas. */
 router.get("/top", async (req, res) => {
@@ -150,8 +158,6 @@ router.put("/:id", async (req, res) => {
   } catch (error) {
     return res.status(MESSAGE_RESPONSE_CODE.BAD_REQUEST).json({ message: error.message });
   }
-
-}); 
-
+});
 
 module.exports = router;

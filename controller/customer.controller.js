@@ -1,19 +1,29 @@
 const { STATUS, STATUS_CUSTOMER, SOCIAL } = require("../lib/constans");
-const {customer} = require("../models/quicklearning/customer");
+const customer = require("../models/quicklearning/customer");
+
+console.log("Customer model:", customer); // Agrega esta línea
 class customerController {
   async create(data) {
     if (!data) return false;
+
     const customerData = await customer.create({
       name: data.name,
-      email: data.email,
       phone: data.phone,
-      whatsAppProfile: data.whatsAppProfile,
-      whatsAppNumber: data.whatsAppNumber,
-      ia: true,
-      city: data.city,
-      social: data?.social ? data?.social : SOCIAL.GOOGLE,
-      agent: data?.agent ? data?.agent : {},
-      status: data?.status ? data?.status : STATUS_CUSTOMER.PENDIENTE,
+      comments: data.comments,
+      classification: data.classification,
+      status: data.status,
+      visitDetails: { branch: data.visitDetails.branch, date: data.visitDetails.date, time: data.visitDetails.time },
+      enrollmentDetails: {
+        consecutive: data.enrollmentDetails.consecutive,
+        course: data.enrollmentDetails.course,
+        modality: data.enrollmentDetails.modality,
+        state: data.enrollmentDetails.state,
+        email: data.enrollmentDetails.email,
+        source: data.enrollmentDetails.source,
+        paymentType: data.enrollmentDetails.paymentType,
+      },
+      user: data.user,
+      ia: data.ia,
     });
     return customerData ? customerData : false;
   }
