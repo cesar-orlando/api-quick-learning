@@ -244,10 +244,11 @@ const dataChatGpt = async () => {
     4: { name: "Semana 4", color: "warning" },
     5: { name: "No clases", color: "success" },
     6: { name: "Vacaciones", color: "success" },
+    7: { name: "Vacaciones", color: "success" },
   };
   const response = await axios.request(config);
 
-  let map = response.data.dateCourses.map((course) => {
+  let map = response.data.dateCourses.slice(0, 30).map((course) => {
     return {
       date: course.date,
       type: permissionsObj[course.type].name,
