@@ -44,4 +44,23 @@ router.put("/", async (req, res) => {
 }
 );
 
+/* EndPoint para crear muchos cursos por medio de un array */
+router.post("/many", async (req, res) => {
+  try {
+    const schema = Joi.array().items(
+      Joi.object({
+        date: Joi.date().required(),
+        courses: Joi.string().required(),
+        type: Joi.number().required(),
+        status: Joi.number().required(),
+      })
+    );
+    const data = await schema.validateAsync(req.body);
+    const dateCourses = await dateCoursesController.createMany(data);
+    return res.status(200).json({ message: "DateCourses created", dateCourses });
+  } catch (error) {
+    return res.status(400).json({ message: error.message });
+  }
+});
+
 module.exports = router;

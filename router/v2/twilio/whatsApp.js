@@ -14,6 +14,7 @@ const { VALIDATED_FIELDS, MESSAGE_RESPONSE, MESSAGE_RESPONSE_CODE } = require(".
 const customerController = require("../../../controller/customer.controller");
 const { dataChatGpt } = require("../../../db/data");
 const { default: axios } = require("axios");
+const userController = require("../../../controller/user.controller");
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
@@ -52,70 +53,115 @@ router.post("/send", async (req, res) => {
   }
 });
 
-
 let messageCounts = {};
 
 router.post("/message", async (req, res) => {
   try {
-    if (req.body.MessageType !== "text") {
-      return res.status(200).json({ message: "Sticker" });
-    }
+    const { MessageType, MediaContentType0, MediaUrl0, WaId, ProfileName, Body, From } = req.body;
 
-    const userNumber = req.body.From;
+    console.log("req.body --->", req.body);
 
-    // Verifica si el usuario ya existe en la base de datos
-    const validateUser = await customerController.findOneCustom({ whatsAppNumber: userNumber });
+    const userNumber = From;
+
+    // Verificar si el usuario ya existe en la base de datos
+    const validateUser = await customerController.findOneCustom({ phone: WaId });
     if (!validateUser) {
+      const getUsers = await userController.findAll();
+      const agentIndex = Math.floor(Math.random() * getUsers.length);
+      const agent = getUsers[agentIndex];
+
       const data = {
-        name: req.body.ProfileName,
-        email: "",
-        phone: req.body.WaId,
-        whatsAppProfile: req.body.ProfileName,
-        whatsAppNumber: userNumber,
+        name: ProfileName,
+        phone: WaId,
+        comments: "",
+        classification: "Prospecto",
+        status: "En conversación",
+        visitDetails: { branch: "", date: "", time: "" },
+        enrollmentDetails: {
+          consecutive: "",
+          course: "",
+          modality: "",
+          state: "",
+          email: "",
+          source: "",
+          paymentType: "",
+        },
+        user: agent._id,
+        ia: true,
       };
       await customerController.create(data);
     }
 
-    // Si ya existe una entrada para el usuario, cancela el timeout previo
-    if (messageCounts[userNumber]) {
-      clearTimeout(messageCounts[userNumber].timeout);
-    } else {
+    // Manejo de mensajes en `messageCounts`
+    if (!messageCounts[userNumber]) {
       messageCounts[userNumber] = { messages: [] };
     }
 
-    // Agrega el mensaje actual al arreglo de mensajes del usuario
-    messageCounts[userNumber].messages.push(req.body.Body);
+    // Agregar mensajes multimedia o de texto al historial
+    if (MessageType !== "text" && MediaUrl0) {
+      messageCounts[userNumber].messages.push({
+        type: "media",
+        mediaType: MediaContentType0,
+        mediaUrl: MediaUrl0,
+        text: Body || "",
+      });
+    } else {
+      messageCounts[userNumber].messages.push({
+        type: "text",
+        content: Body,
+      });
+    }
 
-    // Establece el timeout para enviar la respuesta después de 30 segundos de inactividad
+    // Cancelar un timeout previo, si existe
+    if (messageCounts[userNumber].timeout) {
+      clearTimeout(messageCounts[userNumber].timeout);
+    }
+
+    // Configurar timeout para enviar respuesta después de 30 segundos de inactividad
     messageCounts[userNumber].timeout = setTimeout(async () => {
       if (messageCounts[userNumber]) {
-        const combinedMessage = messageCounts[userNumber].messages.join(" ");
-        const aiResponse = await generatePersonalityResponse(combinedMessage, userNumber);
+        const userMessages = messageCounts[userNumber].messages;
 
-        // Enviar el mensaje de respuesta usando la API de Twilio
+        // Combinar mensajes para enviarlos a OpenAI
+        const combinedMessage = userMessages
+          .map((msg) => {
+            if (msg.type === "text") {
+              return msg.content;
+            } else if (msg.type === "media") {
+              return `Se recibió un archivo (${msg.mediaType}): ${msg.text || "Sin texto adicional"}`;
+            }
+          })
+          .join("\n");
+
+        // Generar respuesta usando OpenAI
+        const aiResponse = await generatePersonalityResponse(
+          combinedMessage, // Mensaje combinado
+          userNumber, // Número del usuario
+          MediaContentType0 || null, // Tipo de media, si existe
+          MediaUrl0 || null // URL del media, si existe
+        );
+
+        // Enviar respuesta al usuario
         await client.messages.create({
           body: aiResponse,
-          from: "whatsapp:+5213341610749", // Número de WhatsApp de Twilio
+          from: "whatsapp:+5213341610749",
           to: userNumber,
         });
 
-        console.log("WhatsApp message sent successfully.");
+        console.log("Respuesta enviada exitosamente:", aiResponse);
 
-        // Limpiar el registro de mensajes del usuario después de enviar la respuesta
+        // Limpiar el registro de mensajes del usuario
         delete messageCounts[userNumber];
       }
-    }, 10000); // Cambia a 30000 para 30 segundos de inactividad
+    }, 15000); // 30 segundos de inactividad
 
-    // Responder al webhook inmediatamente para evitar retrasos
-    res.status(200).json({ message: "Mensaje recibido y en proceso." });
-
+    // Responder al webhook de Twilio
+    res.status(200).json({ message: "Mensaje recibido y consolidando respuestas." });
   } catch (error) {
-    console.log("Error:", error.message);
+    console.error("Error:", error.message);
     res.status(400).json({ message: error.message });
   }
 });
-
-
 
 router.post("/logs-messages", async (req, res) => {
   const messages = await client.messages.list();

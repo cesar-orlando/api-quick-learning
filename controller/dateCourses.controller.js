@@ -22,5 +22,10 @@ class dateCoursesController{
         const data = await dateCourses.updateMany({ date: { $lt: date }, status: 1 }, { status: 2 });
         return data;
     }
+    async createMany(data){
+        if(!data) return false;
+        const dateCoursesData = await dateCourses.insertMany(data);
+        return dateCoursesData ? dateCoursesData : false;
+    }
 }
 module.exports = new dateCoursesController();

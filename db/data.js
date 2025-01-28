@@ -4,61 +4,63 @@ const { response } = require("express");
 const face_to_face_courses = `Cursos Presenciales.
 
 Intensivo.
-Horario. Lunes a viernes
-Inversión. $5,980.00
-Duración. 3 horas diarias, 4 semanas (60 horas de clase)
-Incluye. material, acceso a Quick Learning Online, acceso a sesiones adicionales ilimitadas en vivo con maestros de Quick Learning.
+Horario: Lunes a viernes
+Inversión: $5,150.00
+Duración: 3 horas diarias, 4 semanas (60 horas de clase)
+Incluye: materiales, acceso a Quick Learning Online, sesiones adicionales ilimitadas en vivo con maestros de Quick Learning.
 
 Semi-Intensivo:
 Horario: Lunes a viernes
-Inversión: $3,840.00
-Duración: 4 semanas (30 horas de clase)
-Incluye: material, acceso a Quick Learning Online, acceso a sesiones adicionales ilimitadas en vivo con maestros de Quick Learning.
+Inversión: $3,310.00
+Duración: 1.5 horas diarias, 4 semanas (30 horas de clase)
+Incluye: materiales, acceso a Quick Learning Online, sesiones adicionales ilimitadas en vivo con maestros de Quick Learning.
 
 Sabatino:
 Horario: Cada sábado
-Inversión: $3,840.00
-Duración: 4 semanas (30 horas de clase)
-Incluye: material, acceso a Quick Learning Online, acceso a sesiones adicionales ilimitadas en vivo con maestros de Quick Learning.
+Inversión: $3,310.00
+Duración: 7.5 horas por día, 4 semanas (30 horas de clase)
+Incluye: materiales, acceso a Quick Learning Online, sesiones adicionales ilimitadas en vivo con maestros de Quick Learning.
 
-Niveles de los cursos presenciales con de 1 al 14.
+Niveles de los cursos presenciales van del 1 al 14.
 `;
+
 const virtual_courses = `Cursos Virtuales:
 
 Intensivo:
 Horario: Lunes a viernes
-Inversión: $5,980.00.
+Inversión: $5,150.00
 Duración: 3 horas diarias, 4 semanas (60 horas de clase)
-Incluye: material, acceso a Quick Learning Online (Niveles 1 a 6), acceso a sesiones adicionales ilimitadas en vivo con maestros de Quick Learning.
+Incluye: materiales, acceso a Quick Learning Online, sesiones adicionales ilimitadas en vivo con maestros de Quick Learning.
 
 Semi-Intensivo:
 Horario: Lunes a viernes
-Inversión: $3,840.00 
-Duración: 4 semanas (30 horas de clase)
-Incluye: material, acceso a Quick Learning Online (Niveles 1 a 6), acceso a sesiones adicionales ilimitadas en vivo con maestros de Quick Learning.
+Inversión: $3,310.00
+Duración: 1.5 horas diarias, 4 semanas (30 horas de clase)
+Incluye: materiales, acceso a Quick Learning Online, sesiones adicionales ilimitadas en vivo con maestros de Quick Learning.
 
 Sabatino:
 Horario: Cada sábado
-Inversión: $3,840.00
-Duración: 4 semanas (30 horas de clase)
-Incluye: material, acceso a Quick Learning Online (Niveles 1 a 6), acceso a sesiones adicionales ilimitadas en vivo con maestros de Quick Learning.
-
-
+Inversión: $3,310.00
+Duración: 7.5 horas por día, 4 semanas (30 horas de clase)
+Incluye: materiales, acceso a Quick Learning Online, sesiones adicionales ilimitadas en vivo con maestros de Quick Learning.
 `;
+
 const online_courses = `Curso Online:
 Beneficios:
-Ejercicios interactivos
-Seguimiento de tu progreso
-Herramientas de pronunciación
-Contenido multimedia único
-Reconocimiento de voz
-Sesiones interactivas con maestros en línea
+- Ejercicios interactivos
+- Seguimiento de tu progreso
+- Herramientas de pronunciación
+- Contenido multimedia único
+- Reconocimiento de voz
+- Sesiones interactivas con maestros en línea
+
 Planes de Inversión:
-1 mes: Mil cien pesos (MXN) (No aplica a meses sin intereses)
-3 meses + 1 mes gratis: Tres mil ciento cincuenta pesos (MXN) (Meses sin intereses)
-6 meses + 1 mes gratis: Cinco mil doscientos pesos (MXN) (Meses sin intereses)
-12 meses + 1 mes gratis: Ocho mil ochocientos pesos (MXN) (Meses sin intereses)
+1 mes: $1,250 MXN
+3 meses: $3,500 MXN
+6 meses: $5,700 MXN
+12 meses: $9,700 MXN
 `;
+
 const sedes = `
 Si te preguntan información sobre las sedes, puedes responder con la siguiente información:
 Antes de mandarles las sedes pregunta la ubicación del usuario.
@@ -161,7 +163,7 @@ no olvides preguntar el motivo de la queja o sugerencia.
 decirle que en breve se pondrán en contacto con el para darle seguimiento.
 `;
 
-const quickLearningCourses = `Tu nombre es Elizabeth eres un vendedor de cursos de inglés de la escuela QuickLearning. Tu trabajo es vender a los usuarios. 
+const quickLearningCourses = `Tu nombre es Claudia eres un vendedor de cursos de inglés de la escuela Quick Learning. Tu trabajo es vender a los usuarios. 
 Asegúrate de presentarte muy amablemente para que el usuario se sienta cómodo y pedir su nombre.
 Intenta no mandar preguntas seguidas que sea una conversación fluida.
 Tienes que hablar como si fueras parte de la empresa.
@@ -169,7 +171,7 @@ Formula preguntas abiertas para obtener la mayor cantidad de información del us
 No des la inversión de los cursos al menos que el usuario te lo pida y cuando te lo pida da toda la información del curso.
 
 Preguntar al usuario ¿Como aprendio español?
-Dependiendo lo que te diga le dices como van a aprender inglés en QuickLearning: En Quick Learning primero te enseñamos a pensar y hablar en ingles con una excelente pronunciación y ya cuando tu lo hablas entonces te enseñamos a leer y escribir, y que crees, todo esto sin reglas gramaticales y sin tareas en casa.
+Dependiendo lo que te diga le dices como van a aprender inglés en Quick Learning: En Quick Learning primero te enseñamos a pensar y hablar en ingles con una excelente pronunciación y ya cuando tu lo hablas entonces te enseñamos a leer y escribir, y que crees, todo esto sin reglas gramaticales y sin tareas en casa.
 Este método ya lo tienes comprobado porque así aprendiste español, ¿verdad? 
 
 La edad minima para inscribirse a un curso es de 12 años.
@@ -208,6 +210,10 @@ const student_custom_functions = [
         correo: {
           type: "string",
           description: "Correo electrónico.",
+        },
+        birthday: {
+          type: "string",
+          description: "Fecha de nacimiento.",
         },
       },
     },
