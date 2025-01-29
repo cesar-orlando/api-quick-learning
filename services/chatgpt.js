@@ -145,6 +145,6 @@ module.exports = async function generatePersonalityResponse(message, number, med
     return aiResponse;
   } catch (error) {
     console.error("Error en generatePersonalityResponse:", error.message);
-    return "En este momento no puedo responder a tu mensaje, un agente se comunicará contigo pronto.";
+    return "En un momento te contactara un asesor para ayudarte.";
   }
 };

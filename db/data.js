@@ -5,19 +5,19 @@ const face_to_face_courses = `Cursos Presenciales.
 
 Intensivo.
 Horario: Lunes a viernes
-Inversión: $5,150.00
+Inversión: $6,280.00
 Duración: 3 horas diarias, 4 semanas (60 horas de clase)
 Incluye: materiales, acceso a Quick Learning Online, sesiones adicionales ilimitadas en vivo con maestros de Quick Learning.
 
 Semi-Intensivo:
 Horario: Lunes a viernes
-Inversión: $3,310.00
+Inversión: $4,030.00
 Duración: 1.5 horas diarias, 4 semanas (30 horas de clase)
 Incluye: materiales, acceso a Quick Learning Online, sesiones adicionales ilimitadas en vivo con maestros de Quick Learning.
 
 Sabatino:
 Horario: Cada sábado
-Inversión: $3,310.00
+Inversión: $4,030.00
 Duración: 7.5 horas por día, 4 semanas (30 horas de clase)
 Incluye: materiales, acceso a Quick Learning Online, sesiones adicionales ilimitadas en vivo con maestros de Quick Learning.
 
@@ -28,19 +28,19 @@ const virtual_courses = `Cursos Virtuales:
 
 Intensivo:
 Horario: Lunes a viernes
-Inversión: $5,150.00
+Inversión: $6,280.00
 Duración: 3 horas diarias, 4 semanas (60 horas de clase)
 Incluye: materiales, acceso a Quick Learning Online, sesiones adicionales ilimitadas en vivo con maestros de Quick Learning.
 
 Semi-Intensivo:
 Horario: Lunes a viernes
-Inversión: $3,310.00
+Inversión: $4,030.00
 Duración: 1.5 horas diarias, 4 semanas (30 horas de clase)
 Incluye: materiales, acceso a Quick Learning Online, sesiones adicionales ilimitadas en vivo con maestros de Quick Learning.
 
 Sabatino:
 Horario: Cada sábado
-Inversión: $3,310.00
+Inversión: $4,030.00
 Duración: 7.5 horas por día, 4 semanas (30 horas de clase)
 Incluye: materiales, acceso a Quick Learning Online, sesiones adicionales ilimitadas en vivo con maestros de Quick Learning.
 `;
@@ -163,13 +163,14 @@ no olvides preguntar el motivo de la queja o sugerencia.
 decirle que en breve se pondrán en contacto con el para darle seguimiento.
 `;
 
-const quickLearningCourses = `Tu nombre es Claudia eres un vendedor de cursos de inglés de la escuela Quick Learning. Tu trabajo es vender a los usuarios. 
+const quickLearningCourses = `Tu nombre es Natalia eres un vendedor de cursos de inglés de la escuela Quick Learning. Tu trabajo es vender a los usuarios. 
 Asegúrate de presentarte muy amablemente para que el usuario se sienta cómodo y pedir su nombre.
 Intenta no mandar preguntas seguidas que sea una conversación fluida.
 Tienes que hablar como si fueras parte de la empresa.
 Formula preguntas abiertas para obtener la mayor cantidad de información del usuario, ejemplo: ¿Horario de trabajo? ¿En que trabaja? ¿Ubicación? ¿Porque quiere aprender inglés?
 No des la inversión de los cursos al menos que el usuario te lo pida y cuando te lo pida da toda la información del curso.
 
+Esta parte que sea prioridad.
 Preguntar al usuario ¿Como aprendio español?
 Dependiendo lo que te diga le dices como van a aprender inglés en Quick Learning: En Quick Learning primero te enseñamos a pensar y hablar en ingles con una excelente pronunciación y ya cuando tu lo hablas entonces te enseñamos a leer y escribir, y que crees, todo esto sin reglas gramaticales y sin tareas en casa.
 Este método ya lo tienes comprobado porque así aprendiste español, ¿verdad? 
