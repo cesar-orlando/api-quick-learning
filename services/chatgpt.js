@@ -2,11 +2,219 @@ require("dotenv").config();
 const OpenAI = require("openai");
 const fs = require("fs");
 const FormData = require("form-data");
-const { quickLearningCourses, student_custom_functions, dataChatGpt } = require("../db/data");
+const geolib = require("geolib");
 const { default: axios } = require("axios");
+const { quickLearningCourses, student_custom_functions, dataChatGpt } = require("../db/data");
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
+
+// Tools (funciones que OpenAI puede llamar automáticamente)
+const tools = [
+  {
+    type: "function",
+    function: {
+      name: "get_start_dates",
+      description: "Devuelve las fechas de inicio de los cursos de Quick Learning.",
+      parameters: {
+        type: "object",
+        properties: {},
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_school_locations",
+      description: "Proporciona la dirección y ubicación de las sucursales de Quick Learning.",
+      parameters: {
+        type: "object",
+        properties: {},
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "report_teacher_issue",
+      description: "Recibe una queja sobre un maestro y proporciona instrucciones para reportarlo.",
+      parameters: {
+        type: "object",
+        properties: {
+          issue_details: {
+            type: "string",
+            description: "Detalles de la queja o problema con el maestro.",
+          },
+        },
+        required: ["issue_details"],
+      },
+    },
+  },
+ /*  {
+    type: "function",
+    function: {
+      name: "get_course_prices",
+      description: "Devuelve los precios de los cursos disponibles.",
+      parameters: {
+        type: "object",
+        properties: {
+          course_type: {
+            type: "string",
+            enum: ["intensivo", "semi-intensivo", "sabatino"],
+            description: "Tipo de curso para obtener su precio.",
+          },
+        },
+        required: ["course_type"],
+      },
+    },
+  }, */
+];
+
+// Funciones para cada tool
+const get_start_dates = async (requestedDate = null, isGenericRequest = false) => {
+  try {
+    // Configuración de la petición al API
+    let config = {
+      method: "get",
+      maxBodyLength: Infinity,
+      url: "http://localhost:3000/api/v1/datecourses",
+      headers: {},
+    };
+
+    // Petición al API
+    const response = await axios.request(config);
+
+    // Obtener la fecha de hoy
+    const today = new Date();
+
+    // Filtrar solo los cursos de "Semana 1" que sean futuros
+    let startCourses = response.data.dateCourses
+      .filter((course) => course.type === 1 && new Date(course.date) >= today)
+      .map((course) => new Date(course.date)) // Convertimos las fechas a objetos Date
+      .sort((a, b) => a - b); // Ordenamos las fechas de menor a mayor
+
+    if (startCourses.length === 0) {
+      return "No hay semanas de inicio de curso programadas en las próximas fechas.";
+    }
+
+    // Agrupar por semanas exactas de inicio
+    let weeks = [];
+    let currentWeek = [];
+
+    startCourses.forEach((date, index) => {
+      if (currentWeek.length === 0) {
+        currentWeek.push(date);
+      } else {
+        let lastDate = currentWeek[currentWeek.length - 1];
+        let diffDays = (date - lastDate) / (1000 * 60 * 60 * 24); // Diferencia en días
+
+        if (diffDays === 1) {
+          currentWeek.push(date);
+        } else {
+          weeks.push([...currentWeek]); // Guardamos la semana anterior
+          currentWeek = [date]; // Empezamos una nueva semana
+        }
+      }
+
+      // Agregar la última semana acumulada
+      if (index === startCourses.length - 1) {
+        weeks.push([...currentWeek]);
+      }
+    });
+
+    // **1. Si es una consulta genérica (Ej: "¿Qué otras fechas tienes?")**
+    if (isGenericRequest) {
+      return "📢 ¿Para qué fecha te gustaría empezar? Puedo revisar las semanas disponibles a partir de ese mes o día específico. 😊";
+    }
+
+    // **2. Si el cliente NO ha solicitado una fecha específica, mostrar solo la PRÓXIMA semana**
+    if (!requestedDate) {
+      const firstWeek = weeks[0];
+      const start = firstWeek[0].toLocaleDateString("es-ES");
+      const end = firstWeek[firstWeek.length - 1].toLocaleDateString("es-ES");
+
+      return `📢 ¡Tenemos cupo disponible para la próxima semana de inicio de curso!\n📅 *${start} - ${end}*\n\n🎯 No pierdas la oportunidad de empezar tu aprendizaje cuanto antes. ¿Te gustaría que te ayude con tu inscripción ahora mismo?`;
+    }
+
+    // **3. Si el cliente proporciona una fecha, mostrar semanas después de esa fecha**
+    let requestedDateObj = new Date(requestedDate);
+    let filteredWeeks = weeks.filter((week) => week[0] >= requestedDateObj);
+
+    if (filteredWeeks.length === 0) {
+      return "No hay semanas de inicio disponibles después de la fecha indicada.";
+    }
+
+    let message = "Estas son las próximas semanas de inicio de curso disponibles:\n";
+    filteredWeeks.forEach((week) => {
+      const start = week[0].toLocaleDateString("es-ES");
+      const end = week[week.length - 1].toLocaleDateString("es-ES");
+      message += `📅 ${start} - ${end}\n`;
+    });
+
+    return `${message}\n📢 ¡Aprovecha tu lugar antes de que se agoten los cupos! ¿Te ayudo a asegurar tu inscripción ahora mismo?`;
+  } catch (error) {
+    console.error("Error al obtener las semanas de inicio de cursos:", error.message);
+    return "No pude obtener la información de inicio de cursos en este momento. Inténtalo más tarde.";
+  }
+};
+
+
+const get_school_locations = async (userLocation = null) => {
+  try {
+    // Petición al API de sedes
+    let configSedes = {
+      method: "get",
+      maxBodyLength: Infinity,
+      url: "http://localhost:3000/api/v1/sedes",
+      headers: {},
+    };
+
+    const responseSedes = await axios.request(configSedes);
+    const sedes = responseSedes.data; // Lista de sedes
+
+    // **Caso 1: Si el usuario no proporciona ubicación**
+    if (!userLocation) {
+      return "📍 Para recomendarte la mejor sucursal, por favor dime en qué ciudad te encuentras. 😊";
+    }
+
+    // **Caso 2: Si el usuario proporciona ubicación, buscar la sede más cercana**
+    let closestSede = null;
+    let shortestDistance = Infinity;
+
+    sedes.forEach((sede) => {
+      const sedeLocation = geolib.convertAddressToGPS(sede.address); // Convertir dirección a coordenadas GPS
+      const distance = geolib.getDistance(userLocation, sedeLocation);
+
+      if (distance < shortestDistance) {
+        shortestDistance = distance;
+        closestSede = sede;
+      }
+    });
+
+    if (!closestSede) {
+      return "No pude encontrar una sucursal cercana. 😔 Pero dejame preguntar a un asesor para que nos ayude.";
+    }
+
+    // **Respuesta con la sede más cercana**
+    return `✅ La sucursal más cercana a ti es:\n🏫 *${closestSede.name}*\n📍 Dirección: ${closestSede.address}\n📞 Teléfono: ${closestSede.phone}\n\n¿Te gustaría que te ayude con más información o agendar una visita? 😊`;
+  } catch (error) {
+    console.error("Error al obtener las sedes:", error.message);
+    return "No pude obtener la información de sedes en este momento. Inténtalo más tarde.";
+  }
+};
+
+const report_teacher_issue = (issueDetails) =>
+  `Lamentamos escuchar eso. Para reportar un problema con un maestro, envíanos un correo a soporte@quicklearning.com con los detalles: "${issueDetails}", o llámanos al 800-123-4567.`;
+
+/* const get_course_prices = (courseType) => {
+  const prices = {
+    intensivo: "$5,150 MXN",
+    "semi-intensivo": "$3,310 MXN",
+    sabatino: "$3,310 MXN",
+  };
+
+  return `El precio del curso ${courseType} es ${prices[courseType]}. Puedes ver más información en https://quicklearning.com/precios.`;
+}; */
 
 const transcribeAudio = async (audioUrl) => {
   try {
@@ -97,7 +305,7 @@ module.exports = async function generatePersonalityResponse(message, number, med
     // 1. Obtén el contexto inicial desde la base de datos, si es necesario
     const initialContext = await dataChatGpt(); // Contexto de bienvenida o presentación, si aplica
 
-    // 2. Verifica si el número ya está en la base de datos y prepara la configuración para obtener el historial de mensajes
+    // 2. Obtener historial de mensajes del usuario
     let numberData = JSON.stringify({ to: number });
     let config = {
       method: "post",
@@ -107,7 +315,6 @@ module.exports = async function generatePersonalityResponse(message, number, med
       data: numberData,
     };
 
-    // 3. Obtener el historial de mensajes del usuario
     const response = await axios.request(config).catch((error) => {
       console.error("Error al obtener el historial de mensajes:", error.message);
       return { data: { findMessages: [] } };
@@ -117,32 +324,50 @@ module.exports = async function generatePersonalityResponse(message, number, med
       content: msg.body,
     }));
 
-    // 4. Agregar el mensaje combinado actual y el contexto de la escuela de inglés
+    // 3. Agregar el contexto y el mensaje actual
     mapMessage.unshift({
       role: "system",
       content:
         initialContext ||
-        "Eres Claudia, una asistente de Quick Learning, una escuela de inglés. Responde preguntas sobre cursos, horarios, modalidades de estudio (presencial, virtual) y cualquier duda sobre el programa de inglés de manera amable y profesional.",
+        "Eres Natalia, una asistente de Quick Learning, una escuela de inglés. Responde preguntas sobre cursos, horarios, modalidades de estudio (presencial, virtual) y cualquier duda sobre el programa de inglés de manera amable y profesional.",
     });
     mapMessage.push({ role: "user", content: processedMessage });
 
     console.log("mapMessage:", mapMessage); // Depuración del historial de mensajes
 
-    // 5. Llama a OpenAI para generar una respuesta basada en el historial y el mensaje combinado
+    // 4. Llamada a OpenAI con tools y contexto
     const completion = await openai.chat.completions.create({
-      model: "gpt-4",
+      model: "gpt-4-turbo",
       messages: mapMessage,
       temperature: 0.7,
       top_p: 1,
-      frequency_penalty: 0,
+      frequency_penalty: 2,
       presence_penalty: 0,
+      tools: tools,
+      tool_choice: "auto",
     });
 
-    // 6. Obtiene y devuelve la respuesta de OpenAI
-    const aiResponse = completion.choices[0].message.content;
-    console.log("Respuesta de OpenAI:", aiResponse); // Depuración de la respuesta
+    const toolCall = completion.choices[0].message.tool_calls?.[0];
 
-    return aiResponse;
+    if (toolCall) {
+      const functionName = toolCall.function.name;
+      const functionArgs = JSON.parse(toolCall.function.arguments);
+
+      switch (functionName) {
+        case "get_start_dates":
+          return get_start_dates();
+        case "get_school_locations":
+          return get_school_locations();
+        case "report_teacher_issue":
+          return report_teacher_issue(functionArgs.issue_details);
+        case "get_course_prices":
+          return get_course_prices(functionArgs.course_type);
+        default:
+          return "No pude procesar tu solicitud. Inténtalo de nuevo.";
+      }
+    }
+
+    return completion.choices[0].message.content;
   } catch (error) {
     console.error("Error en generatePersonalityResponse:", error.message);
     return "En un momento te contactara un asesor para ayudarte.";

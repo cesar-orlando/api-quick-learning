@@ -21,7 +21,15 @@ class sedesController {
 
   async getAll(){
     const data = await sedes.find();
-    return data ? data : false;
+    const mapdata = data.map((item) => {
+      return {
+        name: item.name,
+        address: item.address,
+        phone: item.phone,
+        status: item.status,
+      };
+    });
+    return mapdata ? mapdata : false;
   }
 
 
@@ -38,6 +46,12 @@ class sedesController {
       { $set: data },
       { new: true }
     );
+    return sedesData ? sedesData : false;
+  }
+
+  async createMany(data) {
+    if (!data) return false;
+    const sedesData = await sedes.insertMany(data);
     return sedesData ? sedesData : false;
   }
 }

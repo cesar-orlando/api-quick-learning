@@ -51,4 +51,23 @@ router.put("/updatesedes", async (req, res) => {
   }
 });
 
+/* Agregar varias sedes */
+router.post("/addsedes", async (req, res) => {
+  try {
+    const schema = Joi.object({
+      sedes: Joi.array().items(Joi.object({
+        name: Joi.string().required(),
+        address: Joi.string().required(),
+        phone: Joi.string().required(),
+        status: Joi.number().required(),
+      })).required(),
+    });
+    const { sedes } = await schema.validateAsync(req.body);
+    const sedesCreated = await sedesController.createMany(sedes);
+    return res.status(200).json({ message: "Sedes created", sedesCreated });
+  } catch (error) {
+    return res.status(400).json({ message: error.message });
+  }
+});
+
 module.exports = router;
