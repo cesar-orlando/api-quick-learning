@@ -159,7 +159,7 @@ router.post("/message", async (req, res) => {
         // Limpiar el registro de mensajes del usuario
         delete messageCounts[userNumber];
       }
-    }, 1000 /* 30000 */ ); // 30 segundos de inactividad
+    }, 30000 ); // 30 segundos de inactividad
 
     // Responder al webhook de Twilio
     res.status(200).json({ message: "Mensaje recibido y consolidando respuestas." });
