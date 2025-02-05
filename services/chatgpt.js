@@ -37,7 +37,7 @@ const tools = [
     type: "function",
     function: {
       name: "report_teacher_issue",
-      description: "Recibe una queja sobre un maestro y proporciona instrucciones para reportarlo.",
+      description: "Recibe una queja de algo que le paso en la escuela y proporciona instrucciones para reportarlo.",
       parameters: {
         type: "object",
         properties: {
@@ -203,8 +203,9 @@ const get_school_locations = async (userLocation = null) => {
   }
 };
 
-const report_teacher_issue = (issueDetails) =>
-  `Lamentamos escuchar eso. Para reportar un problema con un maestro, envíanos un correo a soporte@quicklearning.com con los detalles: "${issueDetails}", o llámanos al 800-123-4567.`;
+const report_teacher_issue = (issueDetails) => {
+  return `⚠️ *Lamentamos escuchar esto.* Queremos ayudarte lo más rápido posible. Para dar seguimiento a tu reporte, por favor envíanos la siguiente información:\n\n📝 *Nombre completo*\n🏫 *Sucursal donde estás inscrito*\n📚 *Curso que estás tomando*\n⏰ *Horario en el que asistes*\n📢 *Detalles del problema:* "${issueDetails}"\n🎫 *Número de alumno*\n\nCon esta información, nuestro equipo podrá revisar tu caso y darte una solución lo antes posible. ¡Estamos para ayudarte! 😊`;
+};
 
 /* const get_course_prices = (courseType) => {
   const prices = {
@@ -332,8 +333,6 @@ module.exports = async function generatePersonalityResponse(message, number, med
         "Eres Natalia, una asistente de Quick Learning, una escuela de inglés. Responde preguntas sobre cursos, horarios, modalidades de estudio (presencial, virtual) y cualquier duda sobre el programa de inglés de manera amable y profesional.",
     });
     mapMessage.push({ role: "user", content: processedMessage });
-
-    console.log("mapMessage:", mapMessage); // Depuración del historial de mensajes
 
     // 4. Llamada a OpenAI con tools y contexto
     const completion = await openai.chat.completions.create({
