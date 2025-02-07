@@ -22,7 +22,7 @@ const tools = [
       },
     },
   },
-  {
+/*   {
     type: "function",
     function: {
       name: "get_school_locations",
@@ -32,7 +32,7 @@ const tools = [
         properties: {},
       },
     },
-  },
+  }, */
   {
     type: "function",
     function: {
@@ -159,7 +159,7 @@ const get_start_dates = async (requestedDate = null, isGenericRequest = false) =
 };
 
 
-const get_school_locations = async (userLocation = null) => {
+/* const get_school_locations = async (userLocation = null) => {
   try {
     // Petición al API de sedes
     let configSedes = {
@@ -201,7 +201,7 @@ const get_school_locations = async (userLocation = null) => {
     console.error("Error al obtener las sedes:", error.message);
     return "No pude obtener la información de sedes en este momento. Inténtalo más tarde.";
   }
-};
+}; */
 
 const report_teacher_issue = (issueDetails) => {
   return `⚠️ *Lamentamos escuchar esto.* Queremos ayudarte lo más rápido posible. Para dar seguimiento a tu reporte, por favor envíanos la siguiente información:\n\n📝 *Nombre completo*\n🏫 *Sucursal donde estás inscrito*\n📚 *Curso que estás tomando*\n⏰ *Horario en el que asistes*\n📢 *Detalles del problema:* "${issueDetails}"\n🎫 *Número de alumno*\n\nCon esta información, nuestro equipo podrá revisar tu caso y darte una solución lo antes posible. ¡Estamos para ayudarte! 😊`;

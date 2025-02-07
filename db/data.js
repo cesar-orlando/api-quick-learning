@@ -274,6 +274,10 @@ const dataChatGpt = async () => {
 
   const data = `
   ${quickLearningCourses}
+Si te preguntan información sobre las sedes, puedes responder con la siguiente información:
+  Antes de mandarles las sedes pregunta la ubicación del usuario.
+  Nunca mandes información que no sea esta de las sedes.
+  ${JSON.stringify(responseSedes)}
 
   `;
 
