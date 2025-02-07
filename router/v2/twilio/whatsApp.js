@@ -93,10 +93,10 @@ router.post("/message", async (req, res) => {
     }
 
     //validación que si el usuario tiene ia en false no haga nada.
-    if (!validateUser.ia) {
+/*     if (!validateUser.ia) {
       console.log("El usuario no tiene activado el IA");
       return res.status(200).json({ message: "El usuario no tiene activado el IA" });
-    }
+    } */
 
     // Manejo de mensajes en `messageCounts`
     if (!messageCounts[userNumber]) {
