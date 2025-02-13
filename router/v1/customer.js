@@ -92,14 +92,22 @@ router.get("/downloadfile", async (req, res) => {
 
     worksheet.columns = [
       { header: "Name", key: "name", width: 30 },
-      { header: "Email", key: "email", width: 30 },
       { header: "Phone", key: "phone", width: 30 },
-      { header: "WhatsApp Profile", key: "whatsAppProfile", width: 30 },
-      { header: "WhatsApp Number", key: "whatsAppNumber", width: 30 },
-      { header: "IA", key: "ia", width: 30 },
-      { header: "Social", key: "social", width: 30 },
-      { header: "Country", key: "country", width: 30 },
+      { header: "Comments", key: "comments", width: 30 },
+      { header: "Classification", key: "classification", width: 30 },
       { header: "Status", key: "status", width: 30 },
+      { header: "Branch", key: "visitDetails.branch", width: 30 },
+      { header: "Date", key: "visitDetails.date", width: 30 },
+      { header: "Time", key: "visitDetails.time", width: 30 },
+      { header: "Consecutive", key: "enrollmentDetails.consecutive", width: 30 },
+      { header: "Course", key: "enrollmentDetails.course", width: 30 },
+      { header: "Modality", key: "enrollmentDetails.modality", width: 30 },
+      { header: "State", key: "enrollmentDetails.state", width: 30 },
+      { header: "Email", key: "enrollmentDetails.email", width: 30 },
+      { header: "Source", key: "enrollmentDetails.source", width: 30 },
+      { header: "PaymentType", key: "enrollmentDetails.paymentType", width: 30 },
+      { header: "User", key: "user", width: 30 },
+      { header: "IA", key: "ia", width: 30 },
     ];
 
     // Apply styles to headers

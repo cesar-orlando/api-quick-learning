@@ -27,6 +27,7 @@ app.use("/api/v1/promo", require("./router/v1/promo"));
 
 /* Quick Learning */
 app.use("/api/v1/quicklearning", require("./router/quicklearning/v1/customer"));
+app.use("/api/v1/chat", require("./router/quicklearning/v1/chat"));
 
 /* Monex */
 app.use("/api/v1/monex", require("./router/v1/monex/customers"));

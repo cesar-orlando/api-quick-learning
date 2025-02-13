@@ -15,6 +15,8 @@ const customerController = require("../../../controller/customer.controller");
 const { dataChatGpt } = require("../../../db/data");
 const { default: axios } = require("axios");
 const userController = require("../../../controller/user.controller");
+const Chat = require("../../../models/quicklearning/chats");
+const { students } = require("../../../db/dataStudents");
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
@@ -27,31 +29,112 @@ router.post("/", async (req, res) => {
     from: "whatsapp:+5213341610749", // From a valid Twilio number
     to: req.body.to, // Text this number
   });
+
+  console.log("message --->", message);
+
+  let chat = await Chat.findOne({ phone: req.body.to });
+  console.log("chat --->", chat);
+  if (!chat) {
+    chat = new Chat({ phone: req.body.phone });
+  }
+
+  chat.messages.push({
+    direction: "outbound-api",
+    body: req.body.message,
+  });
+
+  await chat.save();
+
   return res.status(200).json({ message: "Message sent", message });
 });
 
 router.post("/send", async (req, res) => {
   try {
-    await client.messages
-      .create({
-        contentSid: "HXd5c4612076eea96ec7c7b9a28095b460", //Es de prueba
-        //contentSid: "HX253992d2b3a97cea05b4809360c6f467",
-        contentVariables: JSON.stringify({ 1: "Name" }),
-        from: "whatsapp:+5213341610750",
-        to: "whatsapp:+5213310819409",
-      })
-      .then((message) => {
-        console.log("message --->", message);
-        return res.status(200).json({ message: "Message sent", message });
-      })
-      .catch((error) => {
-        console.log("error.message --->", error);
-      });
+    if (!students || !Array.isArray(students) || students.length === 0) {
+      return res.status(400).json({ message: "No se encontraron alumnos en la petición." });
+    }
+
+    let results = [];
+
+    for (let student of students) {
+      const { Teléfono, Alumno } = student;
+      let name = Alumno;
+      let phone = `whatsapp:+521${Teléfono}`;
+      let email = student["Correo Electrónico"];
+      console.log("student --->", student);
+      console.log("name --->", name);
+      console.log("phone --->", phone);
+      console.log("email --->", email);
+      return
+
+      if (!phone || !name) {
+        results.push({ phone, name, status: "Falta teléfono o nombre" });
+        continue;
+      }
+
+      // Verificar si el alumno ya existe en la base de datos
+      let existingCustomer = await customerController.findOneCustom({ phone });
+
+      if (!existingCustomer) {
+        // Crear un nuevo cliente si no existe
+        const newCustomer = {
+          name,
+          phone,
+          comments: "",
+          classification: "Prospecto",
+          status: "Inscrito PL completo",
+          visitDetails: { branch: "", date: "", time: "" },
+          enrollmentDetails: {
+            consecutive: "",
+            course: "",
+            modality: "",
+            state: "",
+            email: "",
+            source: "",
+            paymentType: "",
+          },
+          user: null, // Puedes asignar un usuario si es necesario
+          ia: true,
+        };
+        await customerController.create(newCustomer);
+      }
+
+      // Enviar mensaje de WhatsApp
+      try {
+        const message = await client.messages.create({
+          contentSid: "HX7b7de5af5e0e7967bb6461d3cad3b998", // Content SID correcto
+          contentVariables: JSON.stringify({ 1: name }), // Reemplaza {{1}} con el nombre del cliente
+          from: "whatsapp:+5213341610750",
+          to: `whatsapp:+${phone}`,
+        });
+
+        console.log("✅ Mensaje enviado a", phone, "con nombre:", name);
+        results.push({ phone, name, status: "Mensaje enviado", messageSid: message.sid });
+
+        // Crear conversación en la base de datos
+        await chatController.create({
+          phone,
+          messages: [
+            {
+              direction: "outbound-api",
+              body: `Mensaje enviado: "Hola ${name}, sabemos que tu membresía de Quick Learning Online ha vencido..."`,
+              dateCreated: new Date(),
+            },
+          ],
+        });
+      } catch (error) {
+        console.error("❌ Error al enviar mensaje a", phone, ":", error.message);
+        results.push({ phone, name, status: "Error al enviar mensaje", error: error.message });
+      }
+    }
+
+    return res.status(200).json({ message: "Proceso completado", results });
   } catch (error) {
-    console.log("error.message --->", error);
-    return res.status(400).json({ message: error.message });
+    console.error("❌ Error en el endpoint:", error.message);
+    return res.status(500).json({ message: "Error interno del servidor", error: error.message });
   }
 });
+
 
 let messageCounts = {};
 
@@ -90,13 +173,53 @@ router.post("/message", async (req, res) => {
         ia: true,
       };
       await customerController.create(data);
+
+      let chat = await Chat.findOne({ phone: WaId });
+      if (!chat) {
+        chat = new Chat({ phone: WaId });
+      }
+
+      chat.messages.push({
+        direction: "inbound",
+        body: Body,
+      });
+
+      await chat.save();
+
+      // Enviar respuesta al usuario
+      await client.messages.create({
+        body: "¡Hola! Soy NatalIA de Quick Learning, encantada de ayudarte. ¿Cómo te llamas?",
+        from: "whatsapp:+5213341610749",
+        to: userNumber,
+      });
+
+      chat.messages.push({
+        direction: "outbound-api",
+        body: "¡Hola! Soy NatalIA de Quick Learning, encantada de ayudarte. ¿Cómo te llamas?",
+      });
+
+      await chat.save();
+
+      return res.status(200).json({ message: "El usuario no existe en la base de datos" });
     }
 
+    let chat = await Chat.findOne({ phone: WaId });
+    if (!chat) {
+      chat = new Chat({ phone: WaId });
+    }
+
+    chat.messages.push({
+      direction: "inbound",
+      body: Body,
+    });
+
+    await chat.save();
+
     //validación que si el usuario tiene ia en false no haga nada.
-/*     if (!validateUser.ia) {
+    if (!validateUser.ia) {
       console.log("El usuario no tiene activado el IA");
       return res.status(200).json({ message: "El usuario no tiene activado el IA" });
-    } */
+    }
 
     // Manejo de mensajes en `messageCounts`
     if (!messageCounts[userNumber]) {
@@ -159,7 +282,7 @@ router.post("/message", async (req, res) => {
         // Limpiar el registro de mensajes del usuario
         delete messageCounts[userNumber];
       }
-    }, 30000 ); // 30 segundos de inactividad
+    }, 30000); // 30 segundos de inactividad
 
     // Responder al webhook de Twilio
     res.status(200).json({ message: "Mensaje recibido y consolidando respuestas." });
