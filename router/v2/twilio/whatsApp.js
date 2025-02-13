@@ -279,6 +279,18 @@ router.post("/message", async (req, res) => {
 
         console.log("Respuesta enviada exitosamente:", aiResponse);
 
+        let chat = await Chat.findOne({ phone: WaId });
+        if (!chat) {
+          chat = new Chat({ phone: WaId });
+        }
+
+        chat.messages.push({
+          direction: "outbound-api",
+          body: aiResponse,
+        });
+
+        await chat.save();
+
         // Limpiar el registro de mensajes del usuario
         delete messageCounts[userNumber];
       }
