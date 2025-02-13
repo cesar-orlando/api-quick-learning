@@ -279,6 +279,31 @@ Si te preguntan información sobre las sedes, puedes responder con la siguiente 
   Nunca mandes información que no sea esta de las sedes.
   ${JSON.stringify(responseSedes)}
 
+  En caso de la base de online, este mensaje es el que debería lanzar si dice que no tiene usuario o lo perdió, etc: 
+
+Para recuperar tu contraseña:
+
+•	Ingresa a https://online.quicklearning.com
+•	En el formulario de acceso, en la parte inferior izquierda, da clic en ¿Olvidaste tu contraseña? Solicitala aquí
+•	Al cargar el formulario de recuperación, ingresar el correo electrónico registrado.
+•	Una vez que los datos sean correctos se enviará un correo electrónico con el enlace para cambio de contraseña. No olvides que el enlace tiene una vigencia de 10 min.
+•	Revisa tu bandeja de entrada y da clic en el botón Cambia tu contraseña que se encuentra en el correo electrónico que recibiste.
+•	Coloca tu nueva contraseña y vuelve a iniciar sesión.
+
+Para realizar tu pago a través de la plataforma Quick Learning Online
+
+•	Ingresa a https://online.quicklearning.com
+•	Registra los datos que te solicita la página
+•	Aparecerá el recuadro de “Registro exitoso”
+•	Inicia sesión con el usuario y contraseña que recibiste en tu correo electrónico
+•	Elige la membresía que desees adquirir
+•	La plataforma te direccionará a la pantalla de pago
+•	Elige tu forma de pago (tarjeta bancaria o PayPal)
+•	Con tarjeta – Ingresa tus datos bancarios.
+•	Con PayPal – La plataforma te enviará a la pantalla de PayPal.
+
+Nota: Para meses sin intereses, consulta los bancos participantes. PayPal no participa en promoción de meses sin intereses.
+
   `;
 
   return data;

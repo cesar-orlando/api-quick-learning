@@ -107,4 +107,25 @@ router.get("/messages/:phone", async (req, res) => {
     }
 });
 
+/* Eliminar mensajes por numero */
+router.delete("/messages/:phone", async (req, res) => {
+    try {
+        const phone = req.params.phone;
+        const chat = await Chat.findOne({ phone });
+        if (!chat) {
+            return res.status(404).json({ message: "No se encontraron mensajes." });
+        }
+        
+        chat.messages = [];
+        await chat.save();
+
+        res.status(200).json({ message: "Mensajes eliminados correctamente." });
+
+    } catch (error) {
+        console.error("❌ Error al eliminar mensajes:", error);
+        res.status(500).json({ message: "Error al eliminar mensajes." });
+    }
+});
+
+
 module.exports = router;
