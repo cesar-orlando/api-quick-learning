@@ -87,6 +87,118 @@ router.get("/sync-chats", async (req, res) => {
         console.error("❌ Error al sincronizar chats:", error);
         res.status(500).json({ message: "Error en la sincronización de chats." });
     }
+});  
+
+router.get("/sync-create-chats", async (req, res) => {
+    try {
+        console.log("🔄 Iniciando sincronización y creación de chats...");
+
+        // 1️⃣ Obtener todos los clientes con número de teléfono registrado
+        const customers = await customerController.getAllCustom();
+        if (!customers.length) {
+            console.log("❌ No hay clientes para sincronizar.");
+            return res.status(200).json({ message: "No hay clientes en la base de datos." });
+        }
+
+        let totalCustomers = customers.length;
+        let createdChats = 0;
+
+        for (let i = 0; i < totalCustomers; i++) {
+            let customer = customers[i];
+            let number = customer.phone;
+
+            console.log(`📨 Procesando cliente ${i + 1}/${totalCustomers} - Teléfono: ${number}`);
+
+            // 2️⃣ Verificar si ya existe el chat en MongoDB
+            let chat = await Chat.findOne({ phone: number });
+            if (chat) {
+                console.log(`✅ Chat ya existe para ${number}, se omite.`);
+                continue; // Si ya existe, pasamos al siguiente cliente
+            }
+
+            // 3️⃣ Obtener historial de mensajes desde Twilio
+            let numberData = JSON.stringify({ to: `whatsapp:+${number}` });
+            let config = {
+                method: "post",
+                maxBodyLength: Infinity,
+                url: "http://localhost:3000/api/v2/whastapp/logs-messages",
+                headers: { "Content-Type": "application/json" },
+                data: numberData,
+            };
+
+            const response = await axios.request(config).catch((error) => {
+                console.error(`⚠️ Error al obtener mensajes de ${number}:`, error.message);
+                return { data: { findMessages: [] } };
+            });
+
+            let messages = response.data.findMessages.reverse();
+            if (messages.length === 0) {
+                console.log(`⚠️ No hay mensajes en Twilio para ${number}, no se creará chat.`);
+                continue;
+            }
+
+            // 4️⃣ Crear un nuevo chat con los mensajes obtenidos de Twilio
+            let newChat = new Chat({
+                phone: number,
+                messages: messages.map(m => ({
+                    direction: m.direction === "outbound-reply" ? "outbound-api" : m.direction,
+                    body: m.body && m.body.trim() !== "" ? m.body.trim() : "Mensaje multimedia recibido",
+                    dateCreated: new Date(m.dateCreated),
+                })),
+            });
+
+            await newChat.save();
+            createdChats++;
+            console.log(`🆕 Chat creado con ${messages.length} mensajes para ${number}`);
+        }
+
+        console.log(`\n🎯 Sincronización finalizada.`);
+        console.log(`📊 Total de clientes analizados: ${totalCustomers}`);
+        console.log(`🆕 Chats creados: ${createdChats}`);
+
+        res.status(200).json({
+            message: "Sincronización y creación de chats completada.",
+            totalCustomers,
+            createdChats,
+        });
+
+    } catch (error) {
+        console.error("❌ Error al sincronizar y crear chats:", error);
+        res.status(500).json({ message: "Error en la sincronización y creación de chats." });
+    }
+});
+
+
+/* unificar conversaciones repetidas tomando primero la mas antigua */
+router.post("/unify-chat", async (req, res) => {
+    try {
+        const phone = req.body.phone;
+        const chat = await Chat.findOne({ phone });
+        if (!chat) {
+            return res.status(404).json({ message: "No se encontraron mensajes." });
+        }
+
+        let messages = chat.messages;
+        let uniqueMessages = [];
+
+        messages.forEach(m => {
+            let existing = uniqueMessages.find(um => um.body === m.body);
+            if (!existing) {
+                uniqueMessages.push(m);
+            } else if (m.dateCreated < existing.dateCreated) {
+                existing.dateCreated = m.dateCreated;
+            }
+        });
+
+        chat.messages = uniqueMessages;
+        await chat.save();
+
+        res.status(200).json({ message: "Conversaciones unificadas correctamente." });
+
+    } catch (error) {
+        console.error("❌ Error al unificar mensajes:", error);
+        res.status(500).json({ message: "Error al unificar mensajes." });
+    }
 });
 
 /* traer lo mensajes por numero */
@@ -126,6 +238,8 @@ router.delete("/messages/:phone", async (req, res) => {
         res.status(500).json({ message: "Error al eliminar mensajes." });
     }
 });
+
+
 
 
 module.exports = router;

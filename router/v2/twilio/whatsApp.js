@@ -54,9 +54,12 @@ router.post("/send", async (req, res) => {
       return res.status(400).json({ message: "No se encontraron alumnos en la petición." });
     }
 
+    // Obtener solo los primeros 300 estudiantes
+    const limitedStudents = students.slice(350, 370);
+
     let results = [];
 
-    for (let student of students) {
+    for (let student of limitedStudents) {
       const { Teléfono, Alumno } = student;
       let name = Alumno;
       let phone = `whatsapp:+521${Teléfono}`;
@@ -65,7 +68,6 @@ router.post("/send", async (req, res) => {
       console.log("name --->", name);
       console.log("phone --->", phone);
       console.log("email --->", email);
-      return
 
       if (!phone || !name) {
         results.push({ phone, name, status: "Falta teléfono o nombre" });
@@ -79,19 +81,19 @@ router.post("/send", async (req, res) => {
         // Crear un nuevo cliente si no existe
         const newCustomer = {
           name,
-          phone,
-          comments: "",
-          classification: "Prospecto",
-          status: "Inscrito PL completo",
+          phone: Teléfono,
+          comments: "Renovación de membresía",
+          classification: "Alumno",
+          status: "Renovación",
           visitDetails: { branch: "", date: "", time: "" },
           enrollmentDetails: {
-            consecutive: "",
-            course: "",
-            modality: "",
+            consecutive: student.Clave,
+            course: student.Membresía,
+            modality: "Online",
             state: "",
-            email: "",
+            email: email,
             source: "",
-            paymentType: "",
+            paymentType: student.Monto,
           },
           user: null, // Puedes asignar un usuario si es necesario
           ia: true,
@@ -101,34 +103,49 @@ router.post("/send", async (req, res) => {
 
       // Enviar mensaje de WhatsApp
       try {
+        let firstName = name.split(" ")[0]; // Tomar solo el primer nombre
         const message = await client.messages.create({
           contentSid: "HX7b7de5af5e0e7967bb6461d3cad3b998", // Content SID correcto
-          contentVariables: JSON.stringify({ 1: name }), // Reemplaza {{1}} con el nombre del cliente
-          from: "whatsapp:+5213341610750",
-          to: `whatsapp:+${phone}`,
+          contentVariables: JSON.stringify({ 1: firstName }), // Reemplaza {{1}} con el nombre del cliente
+          from: "whatsapp:+5213341610749",
+          to: `521${phone}`,
         });
 
         console.log("✅ Mensaje enviado a", phone, "con nombre:", name);
+        console.log("message.sid --->", message.sid);
         results.push({ phone, name, status: "Mensaje enviado", messageSid: message.sid });
 
         // Crear conversación en la base de datos
-        await chatController.create({
-          phone,
-          messages: [
-            {
-              direction: "outbound-api",
-              body: `Mensaje enviado: "Hola ${name}, sabemos que tu membresía de Quick Learning Online ha vencido..."`,
-              dateCreated: new Date(),
-            },
-          ],
+        let chat = await Chat.findOne({ phone });
+        if (!chat) {
+          chat = new Chat({ phone });
+        }
+
+        chat.messages.push({
+          direction: "outbound-api",
+          body: `Hola ${firstName}, sabemos que tu membresía de Quick Learning Online ha vencido, y queremos darte una gran noticia:
+
+🎁 Este 14 de febrero te regalamos el doble de tiempo en membresías de 3 y 6 meses + 15% de descuento adicional.
+
+Esto significa que si adquieres una membresía de 3 meses, recibirás 6 meses en total. Y si eliges 6 meses, ¡tendrás acceso por todo un año! 📅✨
+
+Es la oportunidad perfecta para seguir aprendiendo inglés con total flexibilidad y acceso a asesorías en vivo con maestros Quick Learning.
+
+💬 Escríbeme si necesitas más información o si quieres aprovechar esta promoción exclusiva.
+
+📌 Solo válida el 14 de febrero. ¡No la dejes pasar`,
         });
+
+        await chat.save();
+
+        console.log("✅ Conversación guardada en la base de datos");
       } catch (error) {
         console.error("❌ Error al enviar mensaje a", phone, ":", error.message);
         results.push({ phone, name, status: "Error al enviar mensaje", error: error.message });
       }
     }
 
-    return res.status(200).json({ message: "Proceso completado", results });
+    return res.status(200).json({ message: "Proceso completado", total:results.length, results });
   } catch (error) {
     console.error("❌ Error en el endpoint:", error.message);
     return res.status(500).json({ message: "Error interno del servidor", error: error.message });

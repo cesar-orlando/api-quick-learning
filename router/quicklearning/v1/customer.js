@@ -6,6 +6,7 @@ const { MESSAGE_RESPONSE_CODE, MESSAGE_RESPONSE } = require("../../../lib/consta
 const { default: axios } = require("axios");
 const OpenAI = require("openai");
 const moment = require("moment");
+const Chat = require("../../../models/quicklearning/chats");
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY, // Tu API Key de OpenAI
 });
@@ -22,6 +23,59 @@ router.get("/list", async (req, res) => {
     });
   }
 });
+
+router.get("/customers/last-message", async (req, res) => {
+  try {
+      // Obtener todos los chats
+      const chats = await Chat.find();
+
+      // Filtrar y obtener el último mensaje INBOUND de cada chat
+      const lastMessages = chats.map(chat => {
+          const lastInboundMessage = chat.messages
+              .filter(msg => msg.direction === "inbound" || "outbound-api") // Solo considerar mensajes entrantes del cliente
+              .sort((a, b) => new Date(b.dateCreated) - new Date(a.dateCreated))[0]; // Obtener el más reciente
+
+          return lastInboundMessage ? { phone: chat.phone, lastMessage: lastInboundMessage } : null;
+      }).filter(Boolean); // Filtrar valores nulos
+
+      // Ordenar los clientes por la fecha del último mensaje inbound (más reciente primero)
+      lastMessages.sort((a, b) => new Date(b.lastMessage.dateCreated) - new Date(a.lastMessage.dateCreated));
+
+      // Obtener los clientes asociados a esos números de teléfono
+      const customers = await customerController.getAllCustom();
+      const customersByLastMessage = lastMessages.map(chat => {
+          const customer = customers.find(c => c.phone === chat.phone);
+          return customer ? { ...customer.toObject(), lastMessage: chat.lastMessage } : null;
+      }).filter(Boolean); // Filtrar nulos
+
+      res.status(200).json({ message: "Customers ordered by last inbound message", customers: customersByLastMessage });
+
+  } catch (error) {
+      console.error("❌ Error al obtener clientes por último mensaje:", error);
+      res.status(500).json({ message: "Error al obtener clientes." });
+  }
+});
+
+/* Traer todos los clientes que estan en null y actualizarlos por el id de un usuario */
+router.put("/updatecustomers", async (req, res) => {
+  try {
+    const customers = await customerController.getAllCustom();
+    let updatedCount = 0;
+
+    for (let customer of customers) {
+      if (customer.user === null) {
+        await customerController.updateOneCustom({ _id: customer._id }, { user: "6791798ced7b7e373611976b" });
+        updatedCount++;
+        console.log(`✅ Cliente actualizado: ${customer.phone}`);
+      }
+    }
+
+    return res.status(200).json({ message: "Clientes actualizados", updatedCount });
+  } catch (error) {
+    console.error("❌ Error al actualizar clientes:", error);
+    return res.status(500).json({ message: "Error interno del servidor", error: error.message });
+  }});
+
 
 /* EP to create a client */
 router.post("/add", async (req, res) => {
@@ -457,6 +511,98 @@ router.get("/comments-summary", async (req, res) => {
   }
 });
 
+router.put("/fix-phone-numbers", async (req, res) => {
+  try {
+    const customers = await customerController.getAllCustom(); // Obtiene todos los clientes
+
+    let updatedCount = 0;
+
+    for (let customer of customers) {
+      if (customer.phone.startsWith("whatsapp:+")) {
+        let cleanPhone = customer.phone.replace("whatsapp:+", ""); // Elimina el prefijo
+
+        // Actualizar el número en la base de datos
+        await customerController.updateOneCustom({ _id: customer._id }, { phone: cleanPhone });
+        updatedCount++;
+        console.log(`✅ Número corregido: ${cleanPhone}`);
+      }
+    }
+
+    return res.status(200).json({
+      message: "Corrección de números completada",
+      updatedCount: updatedCount,
+    });
+  } catch (error) {
+    console.error("❌ Error al corregir números:", error);
+    return res.status(500).json({ message: "Error interno del servidor", error: error.message });
+  }
+});
+
+/* borrame los repetidos */
+router.put("/delete-repeated", async (req, res) => {
+  try {
+    const customers = await customerController.getAllCustom();
+    let updatedCount = 0;
+
+    // Crear un mapa para agrupar clientes por número de teléfono
+    const phoneMap = new Map();
+
+    for (let customer of customers) {
+      if (phoneMap.has(customer.phone)) {
+        // Si el número de teléfono ya existe en el mapa, eliminar el cliente duplicado
+        await customerController.deleteOneCustom({ _id: customer._id });
+        updatedCount++;
+        console.log(`✅ Cliente eliminado: ${customer.phone}`);
+      } else {
+        // Si el número de teléfono no existe en el mapa, agregarlo
+        phoneMap.set(customer.phone, customer);
+      }
+    }
+
+    return res.status(200).json({
+      message: "Clientes eliminados",
+      updatedCount: updatedCount,
+    });
+  } catch (error) {
+    console.error("❌ Error al eliminar clientes:", error);
+    return res.status(500).json({ message: "Error interno del servidor", error: error.message });
+  }
+});
+/* Todos los que tengan en commets Renovación de membresía activa el ia a true por favor */
+router.put("/update-ia", async (req, res) => {
+  try {
+    const customers = await customerController.getAllCustom();
+    let updatedCount = 0;
+
+    for (let customer of customers) {
+      if (customer.comments.includes("Renovación de membresía")) {
+        await customerController.updateOneCustom({ _id: customer._id }, { ia: true });
+        updatedCount++;
+        console.log(`✅ Cliente actualizado: ${customer.phone}`);
+      }
+    }
+
+    return res.status(200).json({
+      message: "Clientes actualizados",
+      updatedCount: updatedCount,
+    });
+  } catch (error) {
+    console.error("❌ Error al actualizar clientes:", error);
+    return res.status(500).json({ message: "Error interno del servidor", error: error.message });
+  }
+});
+
+/* Traer customers por el id del user */
+router.get("/customersbyuser/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const customers = await customerController.getAllCustom();
+    const customersByUser = customers.filter((customer) => customer.user == id);
+    return res.status(MESSAGE_RESPONSE_CODE.OK).json({ message: "Customers by user", customersByUser });
+  } catch (error) {
+    console.log(error);
+  }
+});
 
 /* EP details client with id */
 router.get("/details/:id", async (req, res) => {
@@ -497,5 +643,45 @@ router.put("/update/:id", async (req, res) => {
     return res.status(MESSAGE_RESPONSE_CODE.BAD_REQUEST).json({ message: error.message });
   }
 });
+
+router.get("/customers/last-message/:userId", async (req, res) => {
+  try {
+      const { userId } = req.params;
+
+      console.log("userId", userId);
+
+      // Obtener todos los chats
+      const chats = await Chat.find();
+
+      // Filtrar y obtener el último mensaje INBOUND de cada chat
+      const lastMessages = chats.map(chat => {
+          const lastInboundMessage = chat.messages
+              .filter(msg => msg.direction === "inbound" || "outbound-api" ) // Solo considerar mensajes entrantes del cliente
+              .sort((a, b) => new Date(b.dateCreated) - new Date(a.dateCreated))[0]; // Obtener el más reciente
+
+          return lastInboundMessage ? { phone: chat.phone, lastMessage: lastInboundMessage } : null;
+      }).filter(Boolean); // Filtrar valores nulos
+
+      // Ordenar los mensajes de más reciente a más antiguo
+      lastMessages.sort((a, b) => new Date(b.lastMessage.dateCreated) - new Date(a.lastMessage.dateCreated));
+
+      // Obtener los clientes asociados al usuario específico
+      const customers = await customerController.getAllCustom();
+      const customersByUser = customers.filter(c => c.user == userId); // Filtrar solo los clientes de ese usuario
+
+      // Filtrar solo los clientes que tienen un último mensaje inbound
+      const customersByLastMessage = lastMessages.map(chat => {
+          const customer = customersByUser.find(c => c.phone === chat.phone);
+          return customer ? { ...customer.toObject(), lastMessage: chat.lastMessage } : null;
+      }).filter(Boolean); // Filtrar nulos
+
+      res.status(200).json({ message: "Customers ordered by last inbound message", total:customersByLastMessage.length , customers: customersByLastMessage });
+
+  } catch (error) {
+      console.error("❌ Error al obtener clientes por último mensaje:", error);
+      res.status(500).json({ message: "Error al obtener clientes." });
+  }
+});
+
 
 module.exports = router;

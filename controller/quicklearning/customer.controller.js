@@ -89,6 +89,12 @@ class customerQLController {
     const customerData = await customer.insertMany(data);
     return customerData ? customerData : false;
   }
+
+  async deleteOneCustom(filter) {
+    if (!filter) return false;
+    const customerData = await customer.findOneAndDelete(filter);
+    return customerData ? customerData : false;
+  }
 }
 
 module.exports = new customerQLController();

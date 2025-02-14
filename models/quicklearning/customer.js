@@ -10,7 +10,7 @@ const CustomerQLSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ["Visita agendada", "Segunda llamada", "Inscrito con adelanto", "Inscrito PL completo", "Inscrito con promoción", "En conversación"],
+    enum: ["Visita agendada", "Segunda llamada", "Inscrito con adelanto", "Inscrito PL completo", "Inscrito con promoción", "En conversación", "Renovación"],
   }, // Estado del cliente en el proceso
   visitDetails: {
     // Detalles de la visita (si aplica)
