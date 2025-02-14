@@ -55,7 +55,7 @@ router.post("/send", async (req, res) => {
     }
 
     // Obtener solo los primeros 300 estudiantes
-    const limitedStudents = students.slice(350, 370);
+    const limitedStudents = students.slice(400, 1000);
 
     let results = [];
 
@@ -64,7 +64,7 @@ router.post("/send", async (req, res) => {
       let name = Alumno;
       let phone = `whatsapp:+521${Teléfono}`;
       let email = student["Correo Electrónico"];
-      console.log("student --->", student);
+      let celphone = `521${Teléfono}`
       console.log("name --->", name);
       console.log("phone --->", phone);
       console.log("email --->", email);
@@ -75,13 +75,13 @@ router.post("/send", async (req, res) => {
       }
 
       // Verificar si el alumno ya existe en la base de datos
-      let existingCustomer = await customerController.findOneCustom({ phone });
+      let existingCustomer = await customerController.findOneCustom({ celphone });
 
       if (!existingCustomer) {
         // Crear un nuevo cliente si no existe
         const newCustomer = {
           name,
-          phone: Teléfono,
+          phone: celphone,
           comments: "Renovación de membresía",
           classification: "Alumno",
           status: "Renovación",
@@ -95,7 +95,7 @@ router.post("/send", async (req, res) => {
             source: "",
             paymentType: student.Monto,
           },
-          user: null, // Puedes asignar un usuario si es necesario
+          user: "6791797aed7b7e3736119768", // Puedes asignar un usuario si es necesario
           ia: true,
         };
         await customerController.create(newCustomer);
@@ -108,7 +108,7 @@ router.post("/send", async (req, res) => {
           contentSid: "HX7b7de5af5e0e7967bb6461d3cad3b998", // Content SID correcto
           contentVariables: JSON.stringify({ 1: firstName }), // Reemplaza {{1}} con el nombre del cliente
           from: "whatsapp:+5213341610749",
-          to: `521${phone}`,
+          to: `${phone}`,
         });
 
         console.log("✅ Mensaje enviado a", phone, "con nombre:", name);
@@ -116,29 +116,33 @@ router.post("/send", async (req, res) => {
         results.push({ phone, name, status: "Mensaje enviado", messageSid: message.sid });
 
         // Crear conversación en la base de datos
-        let chat = await Chat.findOne({ phone });
-        if (!chat) {
-          chat = new Chat({ phone });
+        let chat;
+        try {
+          chat = await Chat.findOne({ phone });
+          if (!chat) {
+            chat = new Chat({ phone });
+          }
+        
+          chat.messages.push({
+            direction: "outbound-api",
+            body: `Hola ${firstName}, sabemos que tu membresía de Quick Learning Online ha vencido, y queremos darte una gran noticia:
+        
+        🎁 Este 14 de febrero te regalamos el doble de tiempo en membresías de 3 y 6 meses + 15% de descuento adicional.
+        
+        Esto significa que si adquieres una membresía de 3 meses, recibirás 6 meses en total. Y si eliges 6 meses, ¡tendrás acceso por todo un año! 📅✨
+        
+        Es la oportunidad perfecta para seguir aprendiendo inglés con total flexibilidad y acceso a asesorías en vivo con maestros Quick Learning.
+        
+        💬 Escríbeme si necesitas más información o si quieres aprovechar esta promoción exclusiva.
+        
+        📌 Solo válida el 14 de febrero. ¡No la dejes pasar`,
+          });
+        
+          await chat.save();
+          console.log("✅ Chat guardado para el teléfono:", phone);
+        } catch (error) {
+          console.error("❌ Error al guardar el chat para el teléfono:", phone, error);
         }
-
-        chat.messages.push({
-          direction: "outbound-api",
-          body: `Hola ${firstName}, sabemos que tu membresía de Quick Learning Online ha vencido, y queremos darte una gran noticia:
-
-🎁 Este 14 de febrero te regalamos el doble de tiempo en membresías de 3 y 6 meses + 15% de descuento adicional.
-
-Esto significa que si adquieres una membresía de 3 meses, recibirás 6 meses en total. Y si eliges 6 meses, ¡tendrás acceso por todo un año! 📅✨
-
-Es la oportunidad perfecta para seguir aprendiendo inglés con total flexibilidad y acceso a asesorías en vivo con maestros Quick Learning.
-
-💬 Escríbeme si necesitas más información o si quieres aprovechar esta promoción exclusiva.
-
-📌 Solo válida el 14 de febrero. ¡No la dejes pasar`,
-        });
-
-        await chat.save();
-
-        console.log("✅ Conversación guardada en la base de datos");
       } catch (error) {
         console.error("❌ Error al enviar mensaje a", phone, ":", error.message);
         results.push({ phone, name, status: "Error al enviar mensaje", error: error.message });

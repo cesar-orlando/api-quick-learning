@@ -87,7 +87,7 @@ router.get("/sync-chats", async (req, res) => {
         console.error("❌ Error al sincronizar chats:", error);
         res.status(500).json({ message: "Error en la sincronización de chats." });
     }
-});  
+});
 
 router.get("/sync-create-chats", async (req, res) => {
     try {
@@ -168,6 +168,69 @@ router.get("/sync-create-chats", async (req, res) => {
     }
 });
 
+/* sincronizar chats individuales */
+router.get("/sync-chat/:phone", async (req, res) => {
+    try {
+        const phone = req.params.phone;
+        console.log(`🔄 Sincronizando chat para el número ${phone}...`)
+        let chat = await Chat.findOne({ phone });
+        if (!chat) {
+            console.log(`⚠️ No se encontró chat para el número ${phone}.`);
+            return res.status(404).json({ message: "No se encontró chat para el número especificado." });
+        }
+
+        // 1️⃣ Obtener historial de mensajes desde Twilio
+        let numberData = JSON.stringify({ to: `whatsapp:+${phone}` });
+        let config = {
+            method: "post",
+            maxBodyLength: Infinity,
+            url: "http://localhost:3000/api/v2/whastapp/logs-messages",
+            headers: { "Content-Type": "application/json" },
+            data: numberData,
+        };
+
+        const response = await axios.request(config).catch((error) => {
+            console.error(`⚠️ Error al obtener mensajes de ${phone}:`, error.message);
+            return { data: { findMessages: [] } };
+        });
+
+        let messages = response.data.findMessages.reverse();
+        if (messages.length === 0) {
+            console.log(`⚠️ No hay mensajes para el cliente ${phone}`);
+            return res.status(200).json({ message: "No hay mensajes para el número especificado." });
+        }
+
+        // 2️⃣ Guardar mensajes en MongoDB
+        let existingMessages = new Set(chat.messages.map(m => m.body + m.dateCreated.toISOString()));
+        let newMessages = messages.filter(m => {
+            let key = m.body + new Date(m.dateCreated).toISOString();
+            return !existingMessages.has(key);
+        });
+
+        if (newMessages.length > 0) {
+            newMessages.forEach(m => {
+                chat.messages.push({
+                    direction: m.direction === "outbound-reply" ? "outbound-api" : m.direction,
+                    body: m.body && m.body.trim() !== "" ? m.body.trim() : "Mensaje multimedia recibido",
+                    dateCreated: new Date(m.dateCreated),
+                });
+            });
+
+            await chat.save(); // Guardar los mensajes en la base de datos
+            console.log(`✅ ${newMessages.length} mensajes nuevos guardados para ${phone}`);
+            return res.status(200).json({ message: "Mensajes guardados correctamente." });
+        }
+
+        console.log(`ℹ️ No hay mensajes nuevos para ${phone}`);
+        return res.status(200).json({ message: "No hay mensajes nuevos para el número especificado." });
+
+    } catch (error) {
+        console.error("❌ Error al sincronizar chat:", error);
+        res.status(500).json({ message: "Error al sincronizar chat." });
+    }
+});
+
+
 
 /* unificar conversaciones repetidas tomando primero la mas antigua */
 router.post("/unify-chat", async (req, res) => {
@@ -227,7 +290,7 @@ router.delete("/messages/:phone", async (req, res) => {
         if (!chat) {
             return res.status(404).json({ message: "No se encontraron mensajes." });
         }
-        
+
         chat.messages = [];
         await chat.save();
 
