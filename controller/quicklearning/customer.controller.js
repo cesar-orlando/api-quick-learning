@@ -95,6 +95,12 @@ class customerQLController {
     const customerData = await customer.findOneAndDelete(filter);
     return customerData ? customerData : false;
   }
+
+  async bulkWrite(data) {
+    if (!data) return false;
+    const customerData = await customer.bulkWrite(data);
+    return customerData ? customerData : false;
+  }
 }
 
 module.exports = new customerQLController();

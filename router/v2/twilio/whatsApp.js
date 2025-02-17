@@ -17,6 +17,7 @@ const { default: axios } = require("axios");
 const userController = require("../../../controller/user.controller");
 const Chat = require("../../../models/quicklearning/chats");
 const { students } = require("../../../db/dataStudents");
+const keywordClassification = require("../../../db/keywords");
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
@@ -27,13 +28,10 @@ router.post("/", async (req, res) => {
   const message = await client.messages.create({
     body: req.body.message,
     from: "whatsapp:+5213341610749", // From a valid Twilio number
-    to: req.body.to, // Text this number
+    to: `whatsapp:+${req.body.to}`, // Text this number
   });
 
-  console.log("message --->", message);
-
   let chat = await Chat.findOne({ phone: req.body.to });
-  console.log("chat --->", chat);
   if (!chat) {
     chat = new Chat({ phone: req.body.phone });
   }
@@ -156,7 +154,6 @@ router.post("/send", async (req, res) => {
   }
 });
 
-
 let messageCounts = {};
 
 router.post("/message", async (req, res) => {
@@ -241,6 +238,24 @@ router.post("/message", async (req, res) => {
       console.log("El usuario no tiene activado el IA");
       return res.status(200).json({ message: "El usuario no tiene activado el IA" });
     }
+
+        // **Identificar palabras clave para actualizar clasificación y estado**
+        let newClassification = validateUser.classification;
+        let newStatus = validateUser.status;
+    
+        for (const keyword in keywordClassification) {
+          if (Body.toLowerCase().includes(keyword)) {
+            newClassification = keywordClassification[keyword].classification;
+            newStatus = keywordClassification[keyword].status;
+            break; // Detenerse en la primera coincidencia
+          }
+        }
+    
+        // Si hay cambios en clasificación o estado, actualizarlos en la BD
+        if (newClassification !== validateUser.classification || newStatus !== validateUser.status) {
+          await customerController.updateOneCustom({ phone: WaId }, { classification: newClassification, status: newStatus });
+          console.log(`Cliente actualizado: ${WaId} -> ${newClassification}, ${newStatus}`);
+        }
 
     // Manejo de mensajes en `messageCounts`
     if (!messageCounts[userNumber]) {
@@ -420,5 +435,77 @@ router.post("/send-message", async (req, res) => {
     return res.status(400).json({ message: error.message });
   }
 });
+
+router.get("/update-users-classification", async (req, res) => {
+  try {
+    const users = await customerController.getAllCustom(); // Obtener todos los usuarios
+    let updatedCount = 0;
+    let noMessagesCount = 0;
+    let noMessagesNumbers = [];
+    let inactiveCount = 0;
+    let inactiveNumbers = [];
+
+    const now = new Date(); // Hora actual
+
+    for (let user of users) {
+      let chat = await Chat.findOne({ phone: user.phone });
+      if (!chat || !chat.messages.length) {
+        noMessagesCount++;
+        noMessagesNumbers.push(user.phone);
+        continue; // Si no tiene chat o mensajes, omitir
+      }
+
+      let lastMessage = chat.messages[chat.messages.length - 1];
+      let lastMessageText = lastMessage.body.toLowerCase();
+      let lastMessageTime = new Date(lastMessage.dateCreated); // Convertir timestamp
+
+      let newClassification = user.classification;
+      let newStatus = user.status;
+
+      // Verificar si el último mensaje tiene más de 8 horas
+      const hoursSinceLastMessage = (now - lastMessageTime) / (1000 * 60 * 60);
+      if (hoursSinceLastMessage > 8) {
+        newClassification = "No contesta";
+        newStatus = "Sin interacción";
+        inactiveCount++;
+        inactiveNumbers.push(user.phone);
+      } else {
+        // Analizar palabras clave en el último mensaje
+        for (const keyword in keywordClassification) {
+          if (lastMessageText.includes(keyword)) {
+            newClassification = keywordClassification[keyword].classification;
+            newStatus = keywordClassification[keyword].status;
+            break; // Tomar la primera coincidencia
+          }
+        }
+      }
+
+      // Si hay cambios en la clasificación o el estado, actualizar en la BD
+      if (newClassification !== user.classification || newStatus !== user.status) {
+        await customerController.updateOneCustom(
+          { phone: user.phone },
+          { classification: newClassification, status: newStatus }
+        );
+        console.log(`Actualizado: ${user.phone} -> ${newClassification}, ${newStatus}`);
+        updatedCount++;
+      }
+    }
+
+    res.status(200).json({
+      message: "Usuarios actualizados exitosamente",
+      totalClientes: users.length,
+      clientesActualizados: updatedCount,
+      clientesSinMensajes: noMessagesCount,
+      numerosSinMensajes: noMessagesNumbers,
+      clientesInactivos: inactiveCount,
+      numerosInactivos: inactiveNumbers
+    });
+  } catch (error) {
+    console.error("Error:", error.message);
+    res.status(500).json({ message: "Error al actualizar usuarios", error: error.message });
+  }
+});
+
+
 
 module.exports = router;

@@ -230,8 +230,6 @@ router.get("/sync-chat/:phone", async (req, res) => {
     }
 });
 
-
-
 /* unificar conversaciones repetidas tomando primero la mas antigua */
 router.post("/unify-chat", async (req, res) => {
     try {

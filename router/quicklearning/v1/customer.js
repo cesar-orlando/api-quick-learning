@@ -14,13 +14,27 @@ const openai = new OpenAI({
 /* Show all clients */
 router.get("/list", async (req, res) => {
   try {
-    const result = await customerController.getAllCustom();
-    res.status(MESSAGE_RESPONSE_CODE.OK).json({ message: MESSAGE_RESPONSE.OK, total: result.length, customers: result });
-  } catch (error) {
-    res.json({
-      code: MESSAGE_RESPONSE_CODE.BAD_REQUEST,
-      message: MESSAGE_RESPONSE.BAD_REQUEST,
+    // Obtener todos los clientes
+    const customers = await customerController.getAllCustom();
+
+    // Obtener todos los chats
+    const chats = await Chat.find();
+
+    // Cruzar los clientes con sus conversaciones
+    const customersWithConversations = customers.map(customer => {
+      const chat = chats.find(c => c.phone === customer.phone);
+      return { ...customer.toObject(), messages: chat ? chat.messages : [] };
     });
+
+    res.status(200).json({ 
+      message: "Full customer list with conversations", 
+      total: customersWithConversations.length, 
+      customers: customersWithConversations 
+    });
+
+  } catch (error) {
+    console.error("❌ Error al obtener la lista completa de clientes:", error);
+    res.status(500).json({ message: "Error al obtener la lista de clientes." });
   }
 });
 
@@ -219,8 +233,7 @@ router.post("/addmany", async (req, res) => {
   }
 });
 
-// 🚀 EP para cargar conversaciones con análisis más expresivo
-router.get("/loadconversations", async (req, res) => {
+router.get("/fast-loadconversations", async (req, res) => {
   try {
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
@@ -229,123 +242,188 @@ router.get("/loadconversations", async (req, res) => {
     const customers = await customerController.getAllCustom();
     let totalCustomers = customers.length;
     let abandonedConversations = 0;
+    let updatedCount = 0;
 
-    console.log(`🔍 Iniciando análisis de ${totalCustomers} clientes...\n`);
+    console.log(`\n🚀 Iniciando análisis rápido de ${totalCustomers} clientes...\n`);
 
-    for (let i = 0; i < totalCustomers; i++) {
-      let customer = customers[i];
+    let phones = customers.map(c => c.phone);
+    let chats = await Chat.find({ phone: { $in: phones } });
+    let chatMap = new Map(chats.map(chat => [chat.phone, chat]));
+
+    let updateOperations = customers.map(async (customer, index) => {
       let number = customer.phone;
+      let chat = chatMap.get(number);
       let comments = [];
 
-      console.log(`📨 Procesando cliente ${i + 1}/${totalCustomers} - Teléfono: ${number}`);
+      console.log(`\n📌 [${index + 1}/${totalCustomers}] Analizando cliente: ${number}`);
 
-      // Obtener historial de mensajes
-      let numberData = JSON.stringify({ to: `whatsapp:+${number}` });
-      let config = {
-        method: "post",
-        maxBodyLength: Infinity,
-        url: "http://localhost:3000/api/v2/whastapp/logs-messages",
-        headers: { "Content-Type": "application/json" },
-        data: numberData,
-      };
-
-      const response = await axios.request(config).catch((error) => {
-        console.error(`⚠️ Error al obtener mensajes de ${number}:`, error.message);
-        return { data: { findMessages: [] } };
-      });
-
-      const messages = response.data.findMessages.reverse();
-      if (messages.length === 0) {
-        console.log(`⚠️ No hay mensajes para el cliente ${number}`);
+      if (!chat || !chat.messages.length) {
+        console.log(`⚠️ Cliente ${number} no tiene mensajes.`);
         comments.push("No hubo interacción. El cliente nunca contestó.");
-        continue;
-      }
-
-      // 🔍 Análisis de la conversación
-      let lastAgentMessage = null;
-      let lastUserMessage = null;
-      let firstMessageDate = new Date(messages[0].dateCreated);
-      let lastMessageDate = new Date(messages[messages.length - 1].dateCreated);
-      let elapsedTime = (lastMessageDate - firstMessageDate) / 1000 / 60; // en minutos
-
-      let summary = "";
-      let stoppedAfterMessage = null;
-
-      for (let j = messages.length - 1; j >= 0; j--) {
-        let msg = messages[j];
-
-        if (msg.direction === "inbound" && !lastUserMessage) {
-          lastUserMessage = msg;
-        } else if (msg.direction === "outbound-api" && lastUserMessage) {
-          lastAgentMessage = msg;
-          if (new Date(lastUserMessage.dateCreated) < new Date(lastAgentMessage.dateCreated)) {
-            stoppedAfterMessage = lastAgentMessage.body;
-            abandonedConversations++;
+        return {
+          updateOne: {
+            filter: { _id: customer._id },
+            update: { classification: "No contesta", status: "Sin interacción", comments: comments.join(" ") }
           }
-          break;
-        }
+        };
       }
 
-      // 📌 Generación de respuesta más natural y expresiva
-      if (stoppedAfterMessage) {
-        if (/(\$|\bprecio\b|\binversión\b)/i.test(stoppedAfterMessage)) {
-          summary = "El cliente estaba interesado, pero cuando escuchó el precio, se esfumó.";
-        } else if (/(\bdescuento\b|\bpromoción\b)/i.test(stoppedAfterMessage)) {
-          summary = "Le interesaban los descuentos, pero nunca volvió para aprovecharlos.";
-        } else if (/(\bhorario\b|\bdisponibilidad\b)/i.test(stoppedAfterMessage)) {
-          summary = "Preguntó por los horarios, pero luego se perdió en el tiempo.";
+      const messages = chat.messages.slice(-5).reverse(); // Últimos 5 mensajes
+      let lastMessage = messages.find(m => m.direction === "inbound") || null;
+      let lastMessageDate = lastMessage ? new Date(lastMessage.timestamp) : null;
+      let now = new Date();
+      let hoursSinceLastMessage = lastMessageDate ? (now - lastMessageDate) / (1000 * 60 * 60) : null;
+
+      // 📌 🚀 Si la conversación tiene menos de 3 mensajes, es "Prospecto - En conversación"
+      if (messages.length < 3) {
+        console.log(`🟡 Cliente ${number} tiene menos de 3 mensajes. Clasificando como 'Prospecto - En conversación'.`);
+        comments.push(`Última interacción: "${lastMessage ? lastMessage.body : 'Sin mensajes recientes'}"`);
+        return {
+          updateOne: {
+            filter: { _id: customer._id },
+            update: { classification: "Prospecto", status: "En conversación", comments: comments.join(" ") }
+          }
+        };
+      }
+
+      // 📌 🔥 Detectar "Listo para venta"
+      const readyForSaleKeywords = [
+        "quiero inscribirme", "dónde me registro", "voy a ir", "pasaré a la sede", "estoy interesado en pagar"
+      ];
+      let isReadyForSale = lastMessage && readyForSaleKeywords.some(p => lastMessage.body.toLowerCase().includes(p));
+
+      if (isReadyForSale) {
+        console.log(`🟢 Cliente ${number} mostró intención fuerte de compra. Clasificando como 'Prospecto - Listo para venta'.`);
+        comments.push(`Última interacción: "${lastMessage ? lastMessage.body : 'Sin mensajes recientes'}"`);
+        return {
+          updateOne: {
+            filter: { _id: customer._id },
+            update: { classification: "Prospecto", status: "Listo para venta", comments: comments.join(" ") }
+          }
+        };
+      }
+
+      // 📌 🔄 Si el cliente hace preguntas sobre costos, promociones, cursos, se clasifica como "Prospecto - En conversación"
+      const interestKeywords = ["costo", "precio", "horarios", "modalidad", "curso", "promoción", "duración"];
+      let isInterested = lastMessage && interestKeywords.some(p => lastMessage.body.toLowerCase().includes(p));
+
+      if (isInterested) {
+        console.log(`🟡 Cliente ${number} está interesado. Clasificando como 'Prospecto - En conversación'.`);
+        comments.push(`Última interacción: "${lastMessage ? lastMessage.body : 'Sin mensajes recientes'}"`);
+        return {
+          updateOne: {
+            filter: { _id: customer._id },
+            update: { classification: "Prospecto", status: "En conversación", comments: comments.join(" ") }
+          }
+        };
+      }
+
+      // 📌 ⏳ FILTRO ANTES DE "NO CONTESTA"
+      if (hoursSinceLastMessage > 24) {
+        console.log(`⏳ Cliente ${number} lleva más de 24 horas sin responder.`);
+
+        // 🔵 Si el cliente estaba en "Listo para venta", lo mantenemos ahí
+        if (customer.status === "Listo para venta") {
+          console.log(`🔵 Cliente ${number} ya estaba en 'Listo para venta', manteniendo el estado.`);
+          return {
+            updateOne: {
+              filter: { _id: customer._id },
+              update: { classification: "Prospecto", status: "Listo para venta", comments: "Última interacción antes de pausa: " + (lastMessage ? lastMessage.body : "Sin mensajes recientes") }
+            }
+          };
         } else {
-          summary = `La conversación iba bien, pero después de este mensaje, desapareció: "${stoppedAfterMessage}".`;
+          console.log(`❌ Cliente ${number} no ha respondido, marcándolo como 'No contesta - Sin interacción'.`);
+          abandonedConversations++;
+          return {
+            updateOne: {
+              filter: { _id: customer._id },
+              update: { classification: "No contesta", status: "Sin interacción", comments: "Último mensaje sin respuesta: " + (lastMessage ? lastMessage.body : "Sin mensajes recientes") }
+            }
+          };
         }
-      } else if (elapsedTime > 1440) {
-        summary = "No hay actividad reciente. Tal vez es momento de un recordatorio amigable.";
-      } else if (messages.length > 5) {
-        summary = "Hablamos bastante, pero cuando llegó el momento de decidir, dejó de responder.";
-      } else {
-        summary = "Pidió información, pero después de nuestro primer mensaje, dejó el chat en visto.";
       }
 
-      // 🔥 OpenAI solo si el resumen no es claro
-      if (messages.length > 2 && stoppedAfterMessage && !summary.includes("No contestó")) {
-        let context = messages.slice(-6).map(m => `${m.direction === "inbound" ? "Cliente" : "Asesor"}: ${m.body}`).join("\n");
+      console.log(`✅ Cliente ${number} clasificado como: Prospecto, Estado: En conversación`);
+      comments.push(`Última interacción: "${lastMessage ? lastMessage.body : 'Sin mensajes recientes'}"`);
 
-        const aiResponse = await openai.chat.completions.create({
-          model: "gpt-4",
-          messages: [
-            { role: "system", content: "Resuma la conversación en una frase expresiva y natural, indicando qué pasó." },
-            { role: "user", content: context },
-          ],
-        });
+      updatedCount++;
 
-        summary = aiResponse.choices[0].message.content.trim();
-      }
+      return {
+        updateOne: {
+          filter: { _id: customer._id },
+          update: { classification: "Prospecto", status: "En conversación", comments: comments.join(" ") }
+        }
+      };
+    });
 
-      comments.push(summary);
-
-      // 📝 Guardar comentario en la base de datos
-      customer.comments = comments.join(" ");
-      await customerController.updateOneCustom({ _id: customer._id }, { comments: customer.comments });
-
-      console.log(`✅ Resumen generado para ${number}: ${summary}\n`);
-      console.log(`📌 Cliente ${number} actualizado en la base de datos con comentario.\n`);
-
-      // 📢 Enviar progreso en tiempo real
-      let progress = Math.round(((i + 1) / totalCustomers) * 100);
-      res.write(`data: {"progress": ${progress}, "current": ${i + 1}, "total": ${totalCustomers}}\n\n`);
+    let bulkOperations = (await Promise.all(updateOperations)).filter(op => op !== null);
+    if (bulkOperations.length > 0) {
+      console.log(`💾 Guardando ${bulkOperations.length} actualizaciones en la base de datos...`);
+      await customerController.bulkWrite(bulkOperations);
     }
-
-    // 📊 Enviar estadística final
-    res.write(`data: {"message": "Análisis completado.", "totalCustomers": ${totalCustomers}, "abandonedConversations": ${abandonedConversations}}\n\n`);
-    res.end();
 
     console.log("\n🎯 Análisis finalizado.\n");
     console.log(`📊 Total de clientes analizados: ${totalCustomers}`);
+    console.log(`✅ Clientes actualizados: ${updatedCount}`);
     console.log(`❌ Conversaciones abandonadas: ${abandonedConversations}`);
+
+    res.write(
+      `data: {"message": "Análisis completado.", "totalCustomers": ${totalCustomers}, "clientesActualizados": ${updatedCount}, "abandonedConversations": ${abandonedConversations}}\n\n`
+    );
+    res.end();
 
   } catch (error) {
     console.error("❌ Error al analizar conversaciones:", error);
     res.write(`data: {"error": "Error en el análisis de conversaciones."}\n\n`);
     res.end();
+  }
+});
+
+router.get("/count-classifications-status", async (req, res) => {
+  try {
+    console.log("📊 Iniciando conteo de clasificaciones y estados...");
+
+    // Obtener todos los clientes
+    const customers = await customerController.getAllCustom();
+
+    let classificationCounts = {};
+    let statusCounts = {};
+    let totalCustomers = customers.length;
+
+    // Función para limpiar y unificar nombres de clasificación y estado
+    const normalize = (text) => {
+      if (!text) return "Sin clasificación específica";
+      return text
+        .replace(/[\[\]'`"]/g, "") // Quitar corchetes, comillas simples, invertidas y dobles
+        .replace(/\*\*?/g, "") // Quitar asteriscos
+        .replace(/,$/, "") // Quitar comas al final
+        .trim() // Eliminar espacios extra
+        .replace(/\s{2,}/g, " ") // Reemplazar múltiples espacios con uno solo
+        .replace(/No contesta, Sin interacción/, "Sin interacción"); // Unificar estados combinados
+    };
+
+    // Contar clasificaciones y estados normalizados
+    customers.forEach(customer => {
+      let cleanClassification = normalize(customer.classification);
+      let cleanStatus = normalize(customer.status);
+
+      classificationCounts[cleanClassification] = (classificationCounts[cleanClassification] || 0) + 1;
+      statusCounts[cleanStatus] = (statusCounts[cleanStatus] || 0) + 1;
+    });
+
+    console.log("✅ Conteo completado.");
+    console.log("📌 Resumen de clasificaciones:", classificationCounts);
+    console.log("📌 Resumen de estados:", statusCounts);
+
+    res.status(200).json({
+      message: "Conteo de clientes completado.",
+      totalCustomers,
+      classificationCounts,
+      statusCounts
+    });
+  } catch (error) {
+    console.error("❌ Error al contar clientes:", error);
+    res.status(500).json({ message: "Error al contar clientes", error: error.message });
   }
 });
 
@@ -682,6 +760,38 @@ router.get("/customers/last-message/:userId", async (req, res) => {
       res.status(500).json({ message: "Error al obtener clientes." });
   }
 });
+
+router.get("/customers/conversations/:userId", async (req, res) => {
+  try {
+      const { userId } = req.params;
+
+      console.log("userId", userId);
+
+      // Obtener todos los chats
+      const chats = await Chat.find();
+
+      // Obtener los clientes asociados al usuario específico
+      const customers = await customerController.getAllCustom();
+      const customersByUser = customers.filter(c => c.user == userId); // Filtrar solo los clientes de ese usuario
+
+      // Cruzar los clientes con sus conversaciones (todos los mensajes)
+      const customersWithConversations = customersByUser.map(customer => {
+          const chat = chats.find(c => c.phone === customer.phone);
+          return chat ? { ...customer.toObject(), messages: chat.messages } : null;
+      }).filter(Boolean); // Filtrar nulos
+
+      res.status(200).json({ 
+          message: "Customers with full conversation history", 
+          total: customersWithConversations.length, 
+          customers: customersWithConversations 
+      });
+
+  } catch (error) {
+      console.error("❌ Error al obtener conversaciones de los clientes:", error);
+      res.status(500).json({ message: "Error al obtener las conversaciones." });
+  }
+});
+
 
 
 module.exports = router;
