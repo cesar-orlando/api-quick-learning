@@ -6,72 +6,102 @@ const customerController = require("../../../controller/quicklearning/customer.c
 
 router.get("/sync-chats", async (req, res) => {
     try {
-        console.log("🔄 Iniciando sincronización de chats...");
+        console.log("🔄 Iniciando sincronización optimizada de chats...");
 
-        // 1️⃣ Obtener todos los clientes con número de teléfono registrado
-        const customers = await customerController.getAllCustom();
+        // 1️⃣ Obtener clientes que no han sido actualizados en las últimas 24 horas
+        const cutoffTime = new Date();
+        cutoffTime.setHours(cutoffTime.getHours() - 24);
+
+        const customers = await customerController.getAllCustom({
+            lastUpdated: { $lt: cutoffTime } // Solo clientes con última actualización mayor a 24h
+        });
+
         if (!customers.length) {
-            console.log("❌ No hay clientes para sincronizar.");
-            return res.status(200).json({ message: "No hay clientes en la base de datos." });
+            console.log("✅ Todos los clientes están actualizados. No es necesario sincronizar.");
+            return res.status(200).json({ message: "No hay clientes para sincronizar." });
         }
 
         let totalCustomers = customers.length;
         let updatedCount = 0;
 
-        for (let i = 0; i < totalCustomers; i++) {
-            let customer = customers[i];
-            let number = customer.phone;
+        console.log(`📊 Clientes a sincronizar: ${totalCustomers}`);
 
-            console.log(`📨 Sincronizando chats de cliente ${i + 1}/${totalCustomers} - Teléfono: ${number}`);
+        // 2️⃣ Agrupar los números en lotes de 20 para hacer menos peticiones al API
+        const batchSize = 20;
+        let customerBatches = [];
+        for (let i = 0; i < totalCustomers; i += batchSize) {
+            customerBatches.push(customers.slice(i, i + batchSize));
+        }
 
-            // 2️⃣ Obtener historial de mensajes desde Twilio
-            let numberData = JSON.stringify({ to: `whatsapp:+${number}` });
+        // 3️⃣ Procesar cada lote en paralelo
+        let chatUpdates = customerBatches.map(async (batch) => {
+            let numbers = batch.map(c => `whatsapp:+${c.phone}`);
+
+            console.log(`📨 Obteniendo mensajes para ${numbers.length} clientes...`);
+
+            // 4️⃣ Hacer una sola petición con múltiples números en lugar de una por cada número
             let config = {
                 method: "post",
                 maxBodyLength: Infinity,
                 url: "http://localhost:3000/api/v2/whastapp/logs-messages",
                 headers: { "Content-Type": "application/json" },
-                data: numberData,
+                data: JSON.stringify({ numbers })
             };
 
-            const response = await axios.request(config).catch((error) => {
-                console.error(`⚠️ Error al obtener mensajes de ${number}:`, error.message);
-                return { data: { findMessages: [] } };
+            const response = await axios.request(config).catch(error => {
+                console.error(`⚠️ Error en la petición de mensajes:`, error.message);
+                return { data: { messages: {} } }; // Respuesta vacía si falla la petición
             });
 
-            let messages = response.data.findMessages.reverse();
-            if (messages.length === 0) {
-                console.log(`⚠️ No hay mensajes para el cliente ${number}`);
-                continue;
-            }
+            let messagesByNumber = response.data.messages || {};
 
-            // 3️⃣ Guardar mensajes en MongoDB
-            let chat = await Chat.findOne({ phone: number });
-            if (!chat) chat = new Chat({ phone: number, messages: [] });
+            // 5️⃣ Guardar los mensajes en MongoDB solo si hay nuevos
+            let updateOperations = batch.map(async (customer) => {
+                let number = customer.phone;
+                let chat = await Chat.findOne({ phone: number });
 
-            let existingMessages = new Set(chat.messages.map(m => m.body + m.dateCreated.toISOString()));
+                if (!messagesByNumber[number] || messagesByNumber[number].length === 0) {
+                    console.log(`ℹ️ No hay mensajes nuevos para ${number}`);
+                    return null;
+                }
 
-            let newMessages = messages.filter(m => {
-                let key = m.body + new Date(m.dateCreated).toISOString();
-                return !existingMessages.has(key);
+                let newMessages = messagesByNumber[number].map(m => ({
+                    direction: m.direction === "outbound-reply" ? "outbound-api" : m.direction,
+                    body: m.body && m.body.trim() !== "" ? m.body.trim() : "Mensaje multimedia recibido",
+                    dateCreated: new Date(m.dateCreated),
+                }));
+
+                if (!chat) {
+                    chat = new Chat({ phone: number, messages: [] });
+                }
+
+                let existingMessages = new Set(chat.messages.map(m => m.body + m.dateCreated.toISOString()));
+                let messagesToAdd = newMessages.filter(m => !existingMessages.has(m.body + m.dateCreated.toISOString()));
+
+                if (messagesToAdd.length > 0) {
+                    chat.messages.push(...messagesToAdd);
+                    await chat.save();
+                    console.log(`✅ ${messagesToAdd.length} mensajes nuevos guardados para ${number}`);
+
+                    // 🔄 Actualizamos el timestamp del cliente para evitar futuras consultas innecesarias
+                    await customerController.updateOneCustom(
+                        { phone: number },
+                        { lastUpdated: new Date() }
+                    );
+
+                    return number;
+                }
+
+                return null;
             });
 
-            if (newMessages.length > 0) {
-                newMessages.forEach(m => {
-                    chat.messages.push({
-                        direction: m.direction === "outbound-reply" ? "outbound-api" : m.direction,
-                        body: m.body && m.body.trim() !== "" ? m.body.trim() : "Mensaje multimedia recibido",
-                        dateCreated: new Date(m.dateCreated),
-                    });
-                });
+            let updatedNumbers = (await Promise.all(updateOperations)).filter(Boolean);
+            return updatedNumbers.length;
+        });
 
-                await chat.save(); // Guardar los mensajes en la base de datos
-                updatedCount++;
-                console.log(`✅ ${newMessages.length} mensajes nuevos guardados para ${number}`);
-            } else {
-                console.log(`ℹ️ No hay mensajes nuevos para ${number}`);
-            }
-        }
+        // 6️⃣ Ejecutar todas las operaciones en paralelo
+        let results = await Promise.all(chatUpdates);
+        updatedCount = results.reduce((acc, val) => acc + val, 0);
 
         console.log(`\n🎯 Sincronización finalizada.`);
         console.log(`📊 Total de clientes analizados: ${totalCustomers}`);
@@ -86,85 +116,6 @@ router.get("/sync-chats", async (req, res) => {
     } catch (error) {
         console.error("❌ Error al sincronizar chats:", error);
         res.status(500).json({ message: "Error en la sincronización de chats." });
-    }
-});
-
-router.get("/sync-create-chats", async (req, res) => {
-    try {
-        console.log("🔄 Iniciando sincronización y creación de chats...");
-
-        // 1️⃣ Obtener todos los clientes con número de teléfono registrado
-        const customers = await customerController.getAllCustom();
-        if (!customers.length) {
-            console.log("❌ No hay clientes para sincronizar.");
-            return res.status(200).json({ message: "No hay clientes en la base de datos." });
-        }
-
-        let totalCustomers = customers.length;
-        let createdChats = 0;
-
-        for (let i = 0; i < totalCustomers; i++) {
-            let customer = customers[i];
-            let number = customer.phone;
-
-            console.log(`📨 Procesando cliente ${i + 1}/${totalCustomers} - Teléfono: ${number}`);
-
-            // 2️⃣ Verificar si ya existe el chat en MongoDB
-            let chat = await Chat.findOne({ phone: number });
-            if (chat) {
-                console.log(`✅ Chat ya existe para ${number}, se omite.`);
-                continue; // Si ya existe, pasamos al siguiente cliente
-            }
-
-            // 3️⃣ Obtener historial de mensajes desde Twilio
-            let numberData = JSON.stringify({ to: `whatsapp:+${number}` });
-            let config = {
-                method: "post",
-                maxBodyLength: Infinity,
-                url: "http://localhost:3000/api/v2/whastapp/logs-messages",
-                headers: { "Content-Type": "application/json" },
-                data: numberData,
-            };
-
-            const response = await axios.request(config).catch((error) => {
-                console.error(`⚠️ Error al obtener mensajes de ${number}:`, error.message);
-                return { data: { findMessages: [] } };
-            });
-
-            let messages = response.data.findMessages.reverse();
-            if (messages.length === 0) {
-                console.log(`⚠️ No hay mensajes en Twilio para ${number}, no se creará chat.`);
-                continue;
-            }
-
-            // 4️⃣ Crear un nuevo chat con los mensajes obtenidos de Twilio
-            let newChat = new Chat({
-                phone: number,
-                messages: messages.map(m => ({
-                    direction: m.direction === "outbound-reply" ? "outbound-api" : m.direction,
-                    body: m.body && m.body.trim() !== "" ? m.body.trim() : "Mensaje multimedia recibido",
-                    dateCreated: new Date(m.dateCreated),
-                })),
-            });
-
-            await newChat.save();
-            createdChats++;
-            console.log(`🆕 Chat creado con ${messages.length} mensajes para ${number}`);
-        }
-
-        console.log(`\n🎯 Sincronización finalizada.`);
-        console.log(`📊 Total de clientes analizados: ${totalCustomers}`);
-        console.log(`🆕 Chats creados: ${createdChats}`);
-
-        res.status(200).json({
-            message: "Sincronización y creación de chats completada.",
-            totalCustomers,
-            createdChats,
-        });
-
-    } catch (error) {
-        console.error("❌ Error al sincronizar y crear chats:", error);
-        res.status(500).json({ message: "Error en la sincronización y creación de chats." });
     }
 });
 
@@ -262,6 +213,18 @@ router.post("/unify-chat", async (req, res) => {
     }
 });
 
+/* Traer todos los mensajes */
+router.get("/messages", async (req, res) => {
+    try {
+        const chats = await Chat.find();
+        res.status(200).json({chatstotal: chats.length, chats: chats});
+
+    } catch (error) {
+        console.error("❌ Error al obtener mensajes:", error);
+        res.status(500).json({ message: "Error al obtener mensajes." });
+    }
+});
+
 /* traer lo mensajes por numero */
 router.get("/messages/:phone", async (req, res) => {
     try {
@@ -299,6 +262,7 @@ router.delete("/messages/:phone", async (req, res) => {
         res.status(500).json({ message: "Error al eliminar mensajes." });
     }
 });
+
 
 
 
