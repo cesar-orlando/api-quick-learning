@@ -1,23 +1,15 @@
 require("dotenv").config();
 const express = require("express");
 const router = express.Router();
-const { MessagingResponse } = require("twilio").twiml;
 /* COMPONENTS */
 const generatePersonalityResponse = require("../../../services/chatgpt");
-const generatePersonalityResponseRealState = require("../../../services/chatgpt_arrowhead");
-const generateAgent = require("../../../services/bot_functions");
-const generateAgentVirtuaVoices = require("../../../services/bot_virtual_voices");
-const agentOfRealState = require("../../../services/realstate/bot_prueba");
 const generateAgentTest = require("../../../services/bot_test");
-const Joi = require("joi");
-const { VALIDATED_FIELDS, MESSAGE_RESPONSE, MESSAGE_RESPONSE_CODE } = require("../../../lib/constans");
 const customerController = require("../../../controller/customer.controller");
-const { dataChatGpt } = require("../../../db/data");
-const { default: axios } = require("axios");
 const userController = require("../../../controller/user.controller");
 const Chat = require("../../../models/quicklearning/chats");
 const { students } = require("../../../db/dataStudents");
 const keywordClassification = require("../../../db/keywords");
+const schoolAdmissionsAgent = require("../../../services/realstate/bot_prueba");
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
@@ -383,40 +375,187 @@ router.delete("/delete", async (req, res) => {
 
 router.post("/message-virtual-voices", async (req, res) => {
   try {
-    if (req.body.MessageType !== "text") {
-      return res.status(200).json({ message: "Sticker" });
-    }
-    const validateUser = await customerController.findOneCustom({ whatsAppNumber: req.body.From });
-    if (validateUser) {
-      console.log("El número ya esta registrado");
-    } else {
+    const { MessageType, MediaContentType0, MediaUrl0, WaId, ProfileName, Body, From } = req.body;
+
+    console.log("req.body --->", req.body);
+
+    const userNumber = From;
+
+    // Verificar si el usuario ya existe en la base de datos
+    const validateUser = await customerController.findOneCustom({ phone: WaId });
+    if (!validateUser) {
+/*       const getUsers = await userController.findAll();
+      const agentIndex = Math.floor(Math.random() * getUsers.length);
+      const agent = getUsers[agentIndex]; */
+
       const data = {
-        name: req.body.ProfileName,
-        email: "",
-        phone: req.body.WaId,
-        whatsAppProfile: req.body.ProfileName,
-        whatsAppNumber: req.body.From,
+        name: ProfileName,
+        phone: WaId,
+        comments: "",
+        classification: "Prospecto",
+        status: "En conversación",
+        visitDetails: { branch: "", date: "", time: "" },
+        enrollmentDetails: {
+          consecutive: "",
+          course: "",
+          modality: "",
+          state: "",
+          email: "",
+          source: "",
+          paymentType: "",
+        },
+        user: "67b4caab848c32b1ca4ee89b",
+        ia: true,
       };
       await customerController.create(data);
+
+      let chat = await Chat.findOne({ phone: WaId });
+      if (!chat) {
+        chat = new Chat({ phone: WaId });
+      }
+
+      chat.messages.push({
+        direction: "inbound",
+        body: Body,
+      });
+
+      await chat.save();
+
+      // Enviar respuesta al usuario
+      await client.messages.create({
+        body: "¡Hola! Soy ClauIA de Colegio Ker Liber, encantada de ayudarte. ¿Cómo te llamas?",
+        from: "whatsapp:+14155238886",
+        to: userNumber,
+      });
+
+      /* Aqui agregar un manejador de errores. */
+
+      chat.messages.push({
+        direction: "outbound-api",
+        body: "¡Hola! Soy ClauIA de Colegio Ker Liber, encantada de ayudarte. ¿Cómo te llamas?",
+      });
+
+      await chat.save();
+
+      return res.status(200).json({ message: "El usuario no existe en la base de datos" });
     }
-    const aiResponse = await agentOfRealState(req.body.Body, req.body.From);
-    if (aiResponse === 1) {
-      let config = {
-        method: "post",
-        maxBodyLength: Infinity,
-        url: "http://localhost:3000/api/v2/whastapp/send",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      };
-      await axios.request(config);
+
+    let chat = await Chat.findOne({ phone: WaId });
+    if (!chat) {
+      chat = new Chat({ phone: WaId });
     }
-    const twiml = new MessagingResponse();
-    twiml.message(aiResponse);
-    res.type("text/xml").send(twiml.toString());
+
+    chat.messages.push({
+      direction: "inbound",
+      body: Body,
+    });
+
+    await chat.save();
+
+    //validación que si el usuario tiene ia en false no haga nada.
+    if (!validateUser.ia) {
+      console.log("El usuario no tiene activado el IA");
+      return res.status(200).json({ message: "El usuario no tiene activado el IA" });
+    }
+
+        // **Identificar palabras clave para actualizar clasificación y estado**
+        let newClassification = validateUser.classification;
+        let newStatus = validateUser.status;
+    
+        for (const keyword in keywordClassification) {
+          if (Body.toLowerCase().includes(keyword)) {
+            newClassification = keywordClassification[keyword].classification;
+            newStatus = keywordClassification[keyword].status;
+            break; // Detenerse en la primera coincidencia
+          }
+        }
+    
+        // Si hay cambios en clasificación o estado, actualizarlos en la BD
+        if (newClassification !== validateUser.classification || newStatus !== validateUser.status) {
+          await customerController.updateOneCustom({ phone: WaId }, { classification: newClassification, status: newStatus });
+          console.log(`Cliente actualizado: ${WaId} -> ${newClassification}, ${newStatus}`);
+        }
+
+    // Manejo de mensajes en `messageCounts`
+    if (!messageCounts[userNumber]) {
+      messageCounts[userNumber] = { messages: [] };
+    }
+
+    // Agregar mensajes multimedia o de texto al historial
+    if (MessageType !== "text" && MediaUrl0) {
+      messageCounts[userNumber].messages.push({
+        type: "media",
+        mediaType: MediaContentType0,
+        mediaUrl: MediaUrl0,
+        text: Body || "",
+      });
+    } else {
+      messageCounts[userNumber].messages.push({
+        type: "text",
+        content: Body,
+      });
+    }
+
+    // Cancelar un timeout previo, si existe
+    if (messageCounts[userNumber].timeout) {
+      clearTimeout(messageCounts[userNumber].timeout);
+    }
+
+    // Configurar timeout para enviar respuesta después de 30 segundos de inactividad
+    messageCounts[userNumber].timeout = setTimeout(async () => {
+      if (messageCounts[userNumber]) {
+        const userMessages = messageCounts[userNumber].messages;
+
+        // Combinar mensajes para enviarlos a OpenAI
+        const combinedMessage = userMessages
+          .map((msg) => {
+            if (msg.type === "text") {
+              return msg.content;
+            } else if (msg.type === "media") {
+              return `Se recibió un archivo (${msg.mediaType}): ${msg.text || "Sin texto adicional"}`;
+            }
+          })
+          .join("\n");
+          
+        // Generar respuesta usando OpenAI
+        const aiResponse = await schoolAdmissionsAgent(
+          combinedMessage, // Mensaje combinado
+          userNumber, // Número del usuario
+          MediaContentType0 || null, // Tipo de media, si existe
+          MediaUrl0 || null // URL del media, si existe
+        );
+
+        // Enviar respuesta al usuario
+        await client.messages.create({
+          body: aiResponse,
+          from: "whatsapp:+14155238886",
+          to: userNumber,
+        });
+
+        console.log("Respuesta enviada exitosamente:", aiResponse);
+
+        let chat = await Chat.findOne({ phone: WaId });
+        if (!chat) {
+          chat = new Chat({ phone: WaId });
+        }
+
+        chat.messages.push({
+          direction: "outbound-api",
+          body: aiResponse,
+        });
+
+        await chat.save();
+
+        // Limpiar el registro de mensajes del usuario
+        delete messageCounts[userNumber];
+      }
+    }, 100); // 30 segundos de inactividad
+
+    // Responder al webhook de Twilio
+    res.status(200).json({ message: "Mensaje recibido y consolidando respuestas." });
   } catch (error) {
-    console.log("message: error.message --->", error.message);
-    return res.status(MESSAGE_RESPONSE_CODE.BAD_REQUEST).json({ message: error.message });
+    console.error("Error:", error.message);
+    res.status(400).json({ message: error.message });
   }
 });
 

@@ -12,25 +12,44 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY, // Tu API Key de OpenAI
 });
 
-/* Show all clients */
+/* Show all clients, prioritizing "Prospecto - Interesado" and "Urgente - Queja", placing "No contesta - Sin interacción" at the end */
 router.get("/list", async (req, res) => {
   try {
-    // Obtener todos los clientes
+    console.log("🔍 Obteniendo lista completa de clientes...");
+
+    // 1️⃣ Obtener todos los clientes
     const customers = await customerController.getAllCustom();
+    const phones = customers.map(c => c.phone);
 
-    // Obtener todos los chats
-    const chats = await Chat.find();
+    // 2️⃣ Obtener todos los chats asociados a los clientes
+    const chats = await Chat.find({ phone: { $in: phones } });
 
-    // Cruzar los clientes con sus conversaciones
-    const customersWithConversations = customers.map(customer => {
+    // 3️⃣ Cruzar los clientes con sus conversaciones
+    let customersWithConversations = customers.map(customer => {
       const chat = chats.find(c => c.phone === customer.phone);
       return { ...customer.toObject(), messages: chat ? chat.messages : [] };
     });
 
-    res.status(200).json({ 
-      message: "Full customer list with conversations", 
-      total: customersWithConversations.length, 
-      customers: customersWithConversations 
+    // 4️⃣ Ordenar según prioridad
+    customersWithConversations.sort((a, b) => {
+      const priorityMap = {
+        "Prospecto_Interesado": 3,  // 🔝 Máxima prioridad
+        "Urgente_Queja": 3,         // 🔝 Máxima prioridad
+        "No contesta_Sin interacción": 0, // 🔽 Menor prioridad, al final
+      };
+
+      const priorityA = priorityMap[`${a.classification}_${a.status}`] || 1;
+      const priorityB = priorityMap[`${b.classification}_${b.status}`] || 1;
+
+      return priorityB - priorityA; // Ordenar de mayor a menor prioridad
+    });
+
+    console.log(`✅ Se encontraron ${customersWithConversations.length} clientes.`);
+
+    res.status(200).json({
+      message: "Full customer list with prioritized conversations",
+      total: customersWithConversations.length,
+      customers: customersWithConversations
     });
 
   } catch (error) {
@@ -38,6 +57,7 @@ router.get("/list", async (req, res) => {
     res.status(500).json({ message: "Error al obtener la lista de clientes." });
   }
 });
+
 
 /* EP to create a client */
 router.post("/add", async (req, res) => {
@@ -90,14 +110,11 @@ router.get("/downloadfile", async (req, res) => {
 
     worksheet.columns = [
       { header: "Name", key: "name", width: 30 },
-      { header: "Email", key: "email", width: 30 },
       { header: "Phone", key: "phone", width: 30 },
-      { header: "WhatsApp Profile", key: "whatsAppProfile", width: 30 },
-      { header: "WhatsApp Number", key: "whatsAppNumber", width: 30 },
-      { header: "IA", key: "ia", width: 30 },
-      { header: "Social", key: "social", width: 30 },
-      { header: "Country", key: "country", width: 30 },
+      { header: "comments", key: "comments", width: 30 },
       { header: "Status", key: "status", width: 30 },
+      { header: "Clasificación", key: "classification", width: 30 },
+      { header: "IA", key: "ia", width: 30 },
     ];
 
     // Apply styles to headers
@@ -131,6 +148,82 @@ router.get("/downloadfile", async (req, res) => {
     });
   } catch (error) {
     console.log(error);
+  }
+});
+
+router.get("/downloadfile/membership-expired", async (req, res) => {
+  try {
+    console.log("📥 Generando archivo Excel de clientes con mensaje de membresía vencida...");
+
+    const customers = await customerController.getAllCustom();
+    const phones = customers.map(c => c.phone);
+    const chats = await Chat.find({ phone: { $in: phones } });
+
+    const phraseToSearch = "sabemos que tu membresía de Quick Learning Online ha vencido, y queremos darte una gran noticia";
+
+    // Filtrar clientes que tienen el mensaje en sus conversaciones
+    const filteredCustomers = customers.filter(customer => {
+      const chat = chats.find(c => c.phone === customer.phone);
+      if (!chat || chat.messages.length === 0) return false;
+
+      return chat.messages.some(m => m.direction === "outbound-api" && m.body.includes(phraseToSearch));
+    });
+
+    if (filteredCustomers.length === 0) {
+      console.log("⚠️ No hay clientes con el mensaje de membresía vencida.");
+      return res.status(200).json({ message: "No se encontraron clientes con el mensaje de membresía vencida." });
+    }
+
+    console.log(`✅ Se encontraron ${filteredCustomers.length} clientes con el mensaje.`);
+
+    const workbook = new excel.Workbook();
+    const worksheet = workbook.addWorksheet("Customers");
+
+    worksheet.columns = [
+      { header: "Name", key: "name", width: 30 },
+      { header: "Phone", key: "phone", width: 30 },
+      { header: "Comments", key: "comments", width: 40 },
+      { header: "Status", key: "status", width: 30 },
+      { header: "Clasificación", key: "classification", width: 30 },
+      { header: "IA", key: "ia", width: 15 },
+    ];
+
+    // Aplicar estilos a los encabezados
+    worksheet.getRow(1).eachCell((cell) => {
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FF008CFF" },
+      };
+      cell.font = {
+        color: { argb: "FFFFFFFF" },
+        bold: true,
+        size: 12,
+      };
+      cell.border = {
+        top: { style: "thin", color: { argb: "FF008CFF" } },
+        left: { style: "thin", color: { argb: "FF008CFF" } },
+        bottom: { style: "thin", color: { argb: "FF008CFF" } },
+        right: { style: "thin", color: { argb: "FF008CFF" } },
+      };
+    });
+
+    // Agregar los clientes filtrados al Excel
+    filteredCustomers.forEach((customer) => {
+      worksheet.addRow(customer);
+    });
+
+    const fileName = "customers_membership_expired.xlsx";
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", "attachment; filename=" + fileName);
+
+    return workbook.xlsx.write(res).then(() => {
+      res.end();
+    });
+
+  } catch (error) {
+    console.error("❌ Error al generar el archivo Excel:", error);
+    res.status(500).json({ message: "Error al generar el archivo." });
   }
 });
 
@@ -181,6 +274,7 @@ router.post("/addmany", async (req, res) => {
   }
 });
 
+// filepath: /Users/orlando/Documents/GitHub/Projects/VirtualVoices/virtualvoices/router/quicklearning/v1/customer.js
 router.get("/analyze-undecided-clients", async (req, res) => {
   try {
     // Configurar headers para enviar información en tiempo real (EventStream)
@@ -197,7 +291,7 @@ router.get("/analyze-undecided-clients", async (req, res) => {
 
     let totalCustomers = customers.length;
     let bulkUpdates = [];
-    const promoMessage = "sabemos que tu membresía de Quick Learning Online ha vencido"; // Parte clave del mensaje de promoción
+    const promoMessage = "sabemos que tu membresía de Quick Learning Online ha vencido"; // Mensaje clave
 
     console.log(`📊 Analizando ${totalCustomers} clientes...\n`);
 
@@ -215,7 +309,7 @@ router.get("/analyze-undecided-clients", async (req, res) => {
         continue;
       }
 
-      // 2️⃣ Obtener el último mensaje del usuario
+      // 2️⃣ Obtener el último mensaje del usuario y el último mensaje del bot
       let lastInboundMessage = chat.messages.reverse().find(m => m.direction === "inbound");
       let lastOutboundMessage = chat.messages.reverse().find(m => m.direction === "outbound-api");
 
@@ -223,10 +317,10 @@ router.get("/analyze-undecided-clients", async (req, res) => {
       let now = new Date();
       let hoursSinceLastMessage = lastMessageDate ? (now - lastMessageDate) / (1000 * 60 * 60) : null;
 
-      let classification = "En revisión";
-      let status = "En conversación";
+      let classification = customer.classification;
+      let status = customer.status;
 
-      // 3️⃣ Si el cliente no ha respondido en más de 24 horas, marcar como "No contesta - Sin interacción"
+      // 3️⃣ Si el cliente recibió la promoción y no respondió en 24 horas, marcar como "No contesta - Sin interacción"
       if (lastOutboundMessage && lastOutboundMessage.body.includes(promoMessage)) {
         let promoMessageDate = new Date(lastOutboundMessage.dateCreated);
         let hoursSincePromoMessage = (now - promoMessageDate) / (1000 * 60 * 60);
@@ -238,7 +332,14 @@ router.get("/analyze-undecided-clients", async (req, res) => {
         }
       }
 
-      // 4️⃣ Analizar el último mensaje con palabras clave si no está en "No contesta"
+      // 4️⃣ Si han pasado más de 24 horas desde la última respuesta del usuario, marcar como "No contesta - Sin interacción"
+      if (hoursSinceLastMessage && hoursSinceLastMessage > 24) {
+        classification = "No contesta";
+        status = "Sin interacción";
+        comments += `\n📌 Cliente no ha respondido en más de 24 horas.`;
+      }
+
+      // 5️⃣ Analizar el último mensaje con palabras clave si aún no está en "No contesta"
       if (classification !== "No contesta") {
         let messageText = lastInboundMessage ? lastInboundMessage.body.toLowerCase() : "";
 
@@ -252,9 +353,15 @@ router.get("/analyze-undecided-clients", async (req, res) => {
         }
       }
 
+      // 6️⃣ No actualizar si la clasificación es "Prospecto", "Interesado" o "Urgente queja"
+      if (["Prospecto", "Interesado", "Urgente"].includes(classification)) {
+        console.log(`🔍 Cliente ${number} no se actualizará debido a su clasificación actual: ${classification}`);
+        continue;
+      }
+
       console.log(`✅ Cliente ${number} clasificado como: ${classification}, Estado: ${status}`);
 
-      // 5️⃣ Agregar la actualización al lote (bulk update)
+      // 7️⃣ Agregar la actualización al lote (bulk update)
       bulkUpdates.push({
         updateOne: {
           filter: { _id: customer._id },
@@ -262,12 +369,12 @@ router.get("/analyze-undecided-clients", async (req, res) => {
         },
       });
 
-      // 6️⃣ Enviar progreso en tiempo real
+      // 8️⃣ Enviar progreso en tiempo real
       let progress = Math.round(((i + 1) / totalCustomers) * 100);
       res.write(`data: {"progress": ${progress}, "current": ${i + 1}, "total": ${totalCustomers}}\n\n`);
     }
 
-    // 7️⃣ Ejecutar las actualizaciones en la base de datos
+    // 9️⃣ Ejecutar las actualizaciones en la base de datos
     if (bulkUpdates.length > 0) {
       console.log(`💾 Guardando ${bulkUpdates.length} actualizaciones en la base de datos...`);
       await customerController.bulkWrite(bulkUpdates);
@@ -327,43 +434,62 @@ router.put("/update/:id", async (req, res) => {
   }
 });
 
-/* Traer customers por el id del user */
+/* Traer customers por el id del user, priorizando "Prospecto - Interesado" y "Urgente - Queja" */
 router.get("/customers/conversations/:userId", async (req, res) => {
   try {
-      const { userId } = req.params;
-      console.log("userId", userId);
+    const { userId } = req.params;
+    console.log("userId", userId);
 
-      // Obtener todos los chats
-      const chats = await Chat.find();
+    // 1️⃣ Obtener todos los chats
+    const chats = await Chat.find();
 
-      // Obtener los clientes asociados al usuario específico
-      const customers = await customerController.getAllCustom();
-      const customersByUser = customers.filter(c => c.user == userId); // Filtrar solo los clientes de ese usuario
+    // 2️⃣ Obtener los clientes asociados al usuario específico
+    const customers = await customerController.getAllCustom();
+    const customersByUser = customers.filter(c => c.user == userId); // Filtrar solo los clientes de ese usuario
 
-      // Cruzar los clientes con sus conversaciones (todos los mensajes)
-      let customersWithConversations = customersByUser.map(customer => {
-          const chat = chats.find(c => c.phone === customer.phone);
-          return chat ? { ...customer.toObject(), messages: chat.messages } : null;
-      }).filter(Boolean); // Filtrar nulos
+    // 3️⃣ Cruzar los clientes con sus conversaciones (todos los mensajes)
+    let customersWithConversations = customersByUser.map(customer => {
+      const chat = chats.find(c => c.phone === customer.phone);
+      return chat ? { ...customer.toObject(), messages: chat.messages } : null;
+    }).filter(Boolean); // Filtrar nulos
 
-      // 🔄 Ordenar por la fecha del último mensaje (de más reciente a más antiguo)
-      customersWithConversations.sort((a, b) => {
-          let lastMessageA = a.messages.length > 0 ? new Date(a.messages[a.messages.length - 1].dateCreated) : new Date(0);
-          let lastMessageB = b.messages.length > 0 ? new Date(b.messages[b.messages.length - 1].dateCreated) : new Date(0);
-          return lastMessageB - lastMessageA; // Orden descendente (más reciente primero)
-      });
+    // 4️⃣ Definir prioridad de clasificación y estado
+    const priorityMap = {
+      "Prospecto_Interesado": 3,  // 🔝 Máxima prioridad
+      "Urgente_Queja": 3,         // 🔝 Máxima prioridad
+      "No contesta_Sin interacción": 0, // 🔽 Menor prioridad, al final
+    };
 
-      res.status(200).json({ 
-          message: "Customers with full conversation history", 
-          total: customersWithConversations.length, 
-          customers: customersWithConversations 
-      });
+    // 5️⃣ Ordenar los clientes según prioridad y fecha del último mensaje
+    customersWithConversations.sort((a, b) => {
+      const priorityA = priorityMap[`${a.classification}_${a.status}`] || 1;
+      const priorityB = priorityMap[`${b.classification}_${b.status}`] || 1;
+
+      if (priorityA !== priorityB) {
+        return priorityB - priorityA; // Ordenar primero por prioridad
+      }
+
+      // Si tienen la misma prioridad, ordenar por la fecha del último mensaje (de más reciente a más antiguo)
+      let lastMessageA = a.messages.length > 0 ? new Date(a.messages[a.messages.length - 1].dateCreated) : new Date(0);
+      let lastMessageB = b.messages.length > 0 ? new Date(b.messages[b.messages.length - 1].dateCreated) : new Date(0);
+
+      return lastMessageB - lastMessageA; // Orden descendente (más reciente primero)
+    });
+
+    console.log(`✅ Se encontraron ${customersWithConversations.length} clientes.`);
+
+    res.status(200).json({
+      message: "Customers with full conversation history, prioritized",
+      total: customersWithConversations.length,
+      customers: customersWithConversations
+    });
 
   } catch (error) {
-      console.error("❌ Error al obtener conversaciones de los clientes:", error);
-      res.status(500).json({ message: "Error al obtener las conversaciones." });
+    console.error("❌ Error al obtener conversaciones de los clientes:", error);
+    res.status(500).json({ message: "Error al obtener las conversaciones." });
   }
 });
+
 
 
 

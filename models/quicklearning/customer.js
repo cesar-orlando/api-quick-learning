@@ -6,11 +6,11 @@ const CustomerQLSchema = new mongoose.Schema({
   comments: { type: String }, // Espacio para comentarios
   classification: {
     type: String,
-    enum: ["Prospecto", "No contesta", "No interesado por precio", "Número equivocado", "Error al seleccionar", "Alumno", "Ofrece servicios", "Otros", "Alerta"], // Clasificación del cliente según la interacción inicial
+    enum: ["Prospecto", "No interesado por precio", "Número equivocado", "Alumno", "Ofrece servicios", "No contesta", "Urgente"], // Clasificación del cliente según la interacción inicial
   },
   status: {
     type: String,
-    enum: ["Visita agendada", "Segunda llamada", "Inscrito con adelanto", "Inscrito PL completo", "Inscrito con promoción", "En conversación", "Renovación", "No contesta", "Interesado", "Alerta", "Sin interacción", "Listo para venta"], // Estado del cliente en el proceso
+    enum: ["Interesado", "En conversación", "No contesta", "Renovación", "Otros", "Queja", "Sin interacción"], // Estado del cliente en el proceso
   }, // Estado del cliente en el proceso
   visitDetails: {
     // Detalles de la visita (si aplica)
