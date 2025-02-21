@@ -434,7 +434,7 @@ router.put("/update/:id", async (req, res) => {
   }
 });
 
-/* Traer customers por el id del user, priorizando "Prospecto - Interesado" y "Urgente - Queja" */
+/* Traer customers por el id del user, excluyendo "No contesta - Sin interacción" */
 router.get("/customers/conversations/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
@@ -447,17 +447,19 @@ router.get("/customers/conversations/:userId", async (req, res) => {
     const customers = await customerController.getAllCustom();
     const customersByUser = customers.filter(c => c.user == userId); // Filtrar solo los clientes de ese usuario
 
-    // 3️⃣ Cruzar los clientes con sus conversaciones (todos los mensajes)
-    let customersWithConversations = customersByUser.map(customer => {
-      const chat = chats.find(c => c.phone === customer.phone);
-      return chat ? { ...customer.toObject(), messages: chat.messages } : null;
-    }).filter(Boolean); // Filtrar nulos
+    // 3️⃣ Cruzar los clientes con sus conversaciones (todos los mensajes) y excluir "No contesta - Sin interacción"
+    let customersWithConversations = customersByUser
+      .map(customer => {
+        const chat = chats.find(c => c.phone === customer.phone);
+        return chat ? { ...customer.toObject(), messages: chat.messages } : null;
+      })
+      .filter(Boolean) // Filtrar nulos
+      .filter(customer => !(customer.classification === "No contesta" && customer.status === "Sin interacción")); // Excluir "No contesta - Sin interacción"
 
     // 4️⃣ Definir prioridad de clasificación y estado
     const priorityMap = {
       "Prospecto_Interesado": 3,  // 🔝 Máxima prioridad
       "Urgente_Queja": 3,         // 🔝 Máxima prioridad
-      "No contesta_Sin interacción": 0, // 🔽 Menor prioridad, al final
     };
 
     // 5️⃣ Ordenar los clientes según prioridad y fecha del último mensaje
@@ -476,10 +478,10 @@ router.get("/customers/conversations/:userId", async (req, res) => {
       return lastMessageB - lastMessageA; // Orden descendente (más reciente primero)
     });
 
-    console.log(`✅ Se encontraron ${customersWithConversations.length} clientes.`);
+    console.log(`✅ Se encontraron ${customersWithConversations.length} clientes después de la exclusión.`);
 
     res.status(200).json({
-      message: "Customers with full conversation history, prioritized",
+      message: "Customers with full conversation history, prioritized and filtered",
       total: customersWithConversations.length,
       customers: customersWithConversations
     });
@@ -489,6 +491,7 @@ router.get("/customers/conversations/:userId", async (req, res) => {
     res.status(500).json({ message: "Error al obtener las conversaciones." });
   }
 });
+
 
 
 

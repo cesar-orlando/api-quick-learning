@@ -7,7 +7,7 @@ const generateAgentTest = require("../../../services/bot_test");
 const customerController = require("../../../controller/customer.controller");
 const userController = require("../../../controller/user.controller");
 const Chat = require("../../../models/quicklearning/chats");
-const { students } = require("../../../db/dataStudents");
+const { prospects } = require("../../../db/dataStudents");
 const keywordClassification = require("../../../db/keywords");
 const schoolAdmissionsAgent = require("../../../services/realstate/bot_prueba");
 
@@ -40,21 +40,37 @@ router.post("/", async (req, res) => {
 
 router.post("/send", async (req, res) => {
   try {
-    if (!students || !Array.isArray(students) || students.length === 0) {
+
+    if (!prospects || !Array.isArray(prospects) || prospects.length === 0) {
       return res.status(400).json({ message: "No se encontraron alumnos en la petición." });
     }
 
     // Obtener solo los primeros 300 estudiantes
-    const limitedStudents = students.slice(400, 1000);
+    const limitedStudents = prospects.slice(0, 1002);
+
+    // IDs de usuarios para asignar aleatoriamente
+    const userIds = [
+      "67b897169de9a9bb8a2cf051",
+      "67b8972c9de9a9bb8a2cf054",
+      "67b8973c9de9a9bb8a2cf057",
+      "67b8974c9de9a9bb8a2cf05a",
+      "67b8975a9de9a9bb8a2cf05d"
+    ];
+
+    const getRandomUserId = () => userIds[Math.floor(Math.random() * userIds.length)];
 
     let results = [];
+    let messagesSent = 0;
 
+    
     for (let student of limitedStudents) {
-      const { Teléfono, Alumno } = student;
-      let name = Alumno;
-      let phone = `whatsapp:+521${Teléfono}`;
+      const { Telefono, "Coment Asistentes": name } = student;
+      // Limpiar el número de teléfono
+      let cleanedPhone = Telefono.replace(/\s+/g, "").replace(/[()]/g, "").replace(/^\+1/, "");
+      let phone = `whatsapp:+521${cleanedPhone}`;
+      // let phone = `whatsapp:+5214521311888`
       let email = student["Correo Electrónico"];
-      let celphone = `521${Teléfono}`
+      let celphone = `521${cleanedPhone}`
       console.log("name --->", name);
       console.log("phone --->", phone);
       console.log("email --->", email);
@@ -64,28 +80,42 @@ router.post("/send", async (req, res) => {
         continue;
       }
 
+      // Verificar si el número de teléfono tiene 13 dígitos
+      if (celphone.length !== 13) {
+        console.log(`❌ Número de teléfono inválido: ${celphone}`);
+        results.push({ phone, name, status: "Número de teléfono inválido" });
+        continue;
+      }
+
       // Verificar si el alumno ya existe en la base de datos
       let existingCustomer = await customerController.findOneCustom({ celphone });
+
+      let existingChat = await Chat.findOne({ phone: celphone, "messages.body": /Hola, soy NatalIA/ });
+
+      if (existingChat) {
+        console.log(`🔍 Cliente ${phone} ya recibió el mensaje. Saltando...`);
+        continue;
+      }
 
       if (!existingCustomer) {
         // Crear un nuevo cliente si no existe
         const newCustomer = {
           name,
           phone: celphone,
-          comments: "Renovación de membresía",
-          classification: "Alumno",
-          status: "Renovación",
+          comments: "Envio de chats",
+          classification: "No contesta",
+          status: "Sin interacción",
           visitDetails: { branch: "", date: "", time: "" },
           enrollmentDetails: {
-            consecutive: student.Clave,
-            course: student.Membresía,
-            modality: "Online",
+            consecutive: "",
+            course: "",
+            modality: "",
             state: "",
             email: email,
             source: "",
             paymentType: student.Monto,
           },
-          user: "6791797aed7b7e3736119768", // Puedes asignar un usuario si es necesario
+          user: getRandomUserId(), // Puedes asignar un usuario si es necesario
           ia: true,
         };
         await customerController.create(newCustomer);
@@ -93,10 +123,9 @@ router.post("/send", async (req, res) => {
 
       // Enviar mensaje de WhatsApp
       try {
-        let firstName = name.split(" ")[0]; // Tomar solo el primer nombre
         const message = await client.messages.create({
-          contentSid: "HX7b7de5af5e0e7967bb6461d3cad3b998", // Content SID correcto
-          contentVariables: JSON.stringify({ 1: firstName }), // Reemplaza {{1}} con el nombre del cliente
+          contentSid: "HXd5351b1cba0581ae33b5db1a8f16209a", // Content SID correcto
+          //contentVariables: JSON.stringify({ 1: firstName }), // Reemplaza {{1}} con el nombre del cliente
           from: "whatsapp:+5213341610749",
           to: `${phone}`,
         });
@@ -104,34 +133,30 @@ router.post("/send", async (req, res) => {
         console.log("✅ Mensaje enviado a", phone, "con nombre:", name);
         console.log("message.sid --->", message.sid);
         results.push({ phone, name, status: "Mensaje enviado", messageSid: message.sid });
+        messagesSent++;
 
         // Crear conversación en la base de datos
         let chat;
         try {
-          chat = await Chat.findOne({ phone });
+          chat = await Chat.findOne({ phone: celphone });
           if (!chat) {
-            chat = new Chat({ phone });
+            chat = new Chat({ phone: celphone });
           }
-        
+
           chat.messages.push({
             direction: "outbound-api",
-            body: `Hola ${firstName}, sabemos que tu membresía de Quick Learning Online ha vencido, y queremos darte una gran noticia:
-        
-        🎁 Este 14 de febrero te regalamos el doble de tiempo en membresías de 3 y 6 meses + 15% de descuento adicional.
-        
-        Esto significa que si adquieres una membresía de 3 meses, recibirás 6 meses en total. Y si eliges 6 meses, ¡tendrás acceso por todo un año! 📅✨
-        
-        Es la oportunidad perfecta para seguir aprendiendo inglés con total flexibilidad y acceso a asesorías en vivo con maestros Quick Learning.
-        
-        💬 Escríbeme si necesitas más información o si quieres aprovechar esta promoción exclusiva.
-        
-        📌 Solo válida el 14 de febrero. ¡No la dejes pasar`,
+            body: `Hola, soy NatalIA 
+
+Notamos que estuviste interesado en nuestros cursos en Quick Learning, pero no hemos podido confirmar tu inscripción. 📚✨
+
+🎯 ¿Sigues interesado en mejorar tu inglés de manera rápida y efectiva?
+📅 Tenemos cupos limitados y una oferta especial para ti.`,
           });
-        
+
           await chat.save();
-          console.log("✅ Chat guardado para el teléfono:", phone);
+          console.log("✅ Chat guardado para el teléfono:", celphone);
         } catch (error) {
-          console.error("❌ Error al guardar el chat para el teléfono:", phone, error);
+          console.error("❌ Error al guardar el chat para el teléfono:", celphone, error);
         }
       } catch (error) {
         console.error("❌ Error al enviar mensaje a", phone, ":", error.message);
@@ -139,7 +164,7 @@ router.post("/send", async (req, res) => {
       }
     }
 
-    return res.status(200).json({ message: "Proceso completado", total:results.length, results });
+    return res.status(200).json({ message: "Proceso completado", total: results.length, messagesSent, results });
   } catch (error) {
     console.error("❌ Error en el endpoint:", error.message);
     return res.status(500).json({ message: "Error interno del servidor", error: error.message });
@@ -231,23 +256,23 @@ router.post("/message", async (req, res) => {
       return res.status(200).json({ message: "El usuario no tiene activado el IA" });
     }
 
-        // **Identificar palabras clave para actualizar clasificación y estado**
-        let newClassification = validateUser.classification;
-        let newStatus = validateUser.status;
-    
-        for (const keyword in keywordClassification) {
-          if (Body.toLowerCase().includes(keyword)) {
-            newClassification = keywordClassification[keyword].classification;
-            newStatus = keywordClassification[keyword].status;
-            break; // Detenerse en la primera coincidencia
-          }
-        }
-    
-        // Si hay cambios en clasificación o estado, actualizarlos en la BD
-        if (newClassification !== validateUser.classification || newStatus !== validateUser.status) {
-          await customerController.updateOneCustom({ phone: WaId }, { classification: newClassification, status: newStatus });
-          console.log(`Cliente actualizado: ${WaId} -> ${newClassification}, ${newStatus}`);
-        }
+    // **Identificar palabras clave para actualizar clasificación y estado**
+    let newClassification = validateUser.classification;
+    let newStatus = validateUser.status;
+
+    for (const keyword in keywordClassification) {
+      if (Body.toLowerCase().includes(keyword)) {
+        newClassification = keywordClassification[keyword].classification;
+        newStatus = keywordClassification[keyword].status;
+        break; // Detenerse en la primera coincidencia
+      }
+    }
+
+    // Si hay cambios en clasificación o estado, actualizarlos en la BD
+    if (newClassification !== validateUser.classification || newStatus !== validateUser.status) {
+      await customerController.updateOneCustom({ phone: WaId }, { classification: newClassification, status: newStatus });
+      console.log(`Cliente actualizado: ${WaId} -> ${newClassification}, ${newStatus}`);
+    }
 
     // Manejo de mensajes en `messageCounts`
     if (!messageCounts[userNumber]) {
@@ -384,9 +409,9 @@ router.post("/message-virtual-voices", async (req, res) => {
     // Verificar si el usuario ya existe en la base de datos
     const validateUser = await customerController.findOneCustom({ phone: WaId });
     if (!validateUser) {
-/*       const getUsers = await userController.findAll();
-      const agentIndex = Math.floor(Math.random() * getUsers.length);
-      const agent = getUsers[agentIndex]; */
+      /*       const getUsers = await userController.findAll();
+            const agentIndex = Math.floor(Math.random() * getUsers.length);
+            const agent = getUsers[agentIndex]; */
 
       const data = {
         name: ProfileName,
@@ -458,23 +483,23 @@ router.post("/message-virtual-voices", async (req, res) => {
       return res.status(200).json({ message: "El usuario no tiene activado el IA" });
     }
 
-        // **Identificar palabras clave para actualizar clasificación y estado**
-        let newClassification = validateUser.classification;
-        let newStatus = validateUser.status;
-    
-        for (const keyword in keywordClassification) {
-          if (Body.toLowerCase().includes(keyword)) {
-            newClassification = keywordClassification[keyword].classification;
-            newStatus = keywordClassification[keyword].status;
-            break; // Detenerse en la primera coincidencia
-          }
-        }
-    
-        // Si hay cambios en clasificación o estado, actualizarlos en la BD
-        if (newClassification !== validateUser.classification || newStatus !== validateUser.status) {
-          await customerController.updateOneCustom({ phone: WaId }, { classification: newClassification, status: newStatus });
-          console.log(`Cliente actualizado: ${WaId} -> ${newClassification}, ${newStatus}`);
-        }
+    // **Identificar palabras clave para actualizar clasificación y estado**
+    let newClassification = validateUser.classification;
+    let newStatus = validateUser.status;
+
+    for (const keyword in keywordClassification) {
+      if (Body.toLowerCase().includes(keyword)) {
+        newClassification = keywordClassification[keyword].classification;
+        newStatus = keywordClassification[keyword].status;
+        break; // Detenerse en la primera coincidencia
+      }
+    }
+
+    // Si hay cambios en clasificación o estado, actualizarlos en la BD
+    if (newClassification !== validateUser.classification || newStatus !== validateUser.status) {
+      await customerController.updateOneCustom({ phone: WaId }, { classification: newClassification, status: newStatus });
+      console.log(`Cliente actualizado: ${WaId} -> ${newClassification}, ${newStatus}`);
+    }
 
     // Manejo de mensajes en `messageCounts`
     if (!messageCounts[userNumber]) {
@@ -516,7 +541,7 @@ router.post("/message-virtual-voices", async (req, res) => {
             }
           })
           .join("\n");
-          
+
         // Generar respuesta usando OpenAI
         const aiResponse = await schoolAdmissionsAgent(
           combinedMessage, // Mensaje combinado
