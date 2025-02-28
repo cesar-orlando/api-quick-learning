@@ -8,11 +8,11 @@ const OpenAI = require("openai");
 const moment = require("moment");
 const Chat = require("../../../models/quicklearning/chats");
 const keywordClassification = require("../../../db/keywords");
+const userController = require("../../../controller/quicklearning/user.controller");
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY, // Tu API Key de OpenAI
 });
 
-/* Show all clients, prioritizing "Prospecto - Interesado" and "Urgente - Queja", placing "No contesta - Sin interacción" at the end */
 router.get("/list", async (req, res) => {
   try {
     console.log("🔍 Obteniendo lista completa de clientes...");
@@ -58,6 +58,51 @@ router.get("/list", async (req, res) => {
   }
 });
 
+router.get("/responded-to-message", async (req, res) => {
+  try {
+    console.log("🔍 Obteniendo clientes que respondieron al mensaje específico...");
+
+    const customers = await customerController.getAllCustom();
+    const phones = customers.map(c => c.phone);
+    const chats = await Chat.find({ phone: { $in: phones } });
+
+    const messageToSearch = `Hola, soy NatalIA 
+
+Notamos que estuviste interesado en nuestros cursos en Quick Learning, pero no hemos podido confirmar tu inscripción. 📚✨
+
+🎯 ¿Sigues interesado en mejorar tu inglés de manera rápida y efectiva?
+📅 Tenemos cupos limitados y una oferta especial para ti.`;
+
+    // Filtrar clientes que han respondido al mensaje específico
+    const respondedCustomers = customers.filter(customer => {
+      const chat = chats.find(c => c.phone === customer.phone);
+      if (!chat || chat.messages.length === 0) return false;
+
+      const outboundMessage = chat.messages.find(m => m.direction === "outbound-api" && m.body.includes(messageToSearch));
+      if (!outboundMessage) return false;
+
+      const responseMessage = chat.messages.find(m => m.direction === "inbound" && new Date(m.dateCreated) > new Date(outboundMessage.dateCreated));
+      return !!responseMessage;
+    });
+
+    if (respondedCustomers.length === 0) {
+      console.log("⚠️ No hay clientes que hayan respondido al mensaje específico.");
+      return res.status(200).json({ message: "No se encontraron clientes que hayan respondido al mensaje específico." });
+    }
+
+    console.log(`✅ Se encontraron ${respondedCustomers.length} clientes que respondieron al mensaje.`);
+
+    res.status(200).json({
+      message: "Clientes que respondieron al mensaje específico",
+      total: respondedCustomers.length,
+      customers: respondedCustomers
+    });
+
+  } catch (error) {
+    console.error("❌ Error al obtener los clientes que respondieron al mensaje:", error);
+    res.status(500).json({ message: "Error al obtener los clientes que respondieron al mensaje." });
+  }
+});
 
 /* EP to create a client */
 router.post("/add", async (req, res) => {
@@ -98,6 +143,42 @@ router.put("/updatecustomer", async (req, res) => {
   } catch (error) {
     res.status(MESSAGE_RESPONSE_CODE.BAD_REQUEST).json({ message: error.message });
     console.log(error.message);
+  }
+});
+
+/* EP to update client with phone */
+router.put("/updatecustomer/:phone", async (req, res) => {
+  try {
+    const { phone } = req.params;
+
+    // Obtener todos los usuarios
+    const users = await userController.findAll();
+    if (!users || users.length === 0) {
+      return res.status(500).json({ message: "No se encontraron usuarios para asignar." });
+    }
+
+    // Función para obtener un ID de usuario aleatorio
+    const getRandomUserId = () => users[Math.floor(Math.random() * users.length)]._id;
+
+    // Buscar y actualizar el cliente
+    const updatedCustomer = await customerController.updateOneCustom(
+      { phone: phone },
+      {
+        ia: false,
+        user: getRandomUserId(),
+        classification: "Prospecto",
+        status: "Interesado"
+      }
+    );
+
+    if (!updatedCustomer) {
+      return res.status(404).json({ message: "Cliente no encontrado" });
+    }
+
+    return res.status(200).json({ message: "Cliente actualizado", customer: updatedCustomer });
+  } catch (error) {
+    console.error("❌ Error al actualizar el cliente:", error);
+    return res.status(500).json({ message: "Error interno del servidor", error: error.message });
   }
 });
 
@@ -492,9 +573,17 @@ router.get("/customers/conversations/:userId", async (req, res) => {
   }
 });
 
-
-
-
-
+/* ep para eliminar un usuario. */
+router.delete("/delete/:id", async (req, res) => {
+  try {
+    const customer = await customerController.deleteOneCustom({ _id: req.params.id });
+    if (!customer) {
+      return res.status(MESSAGE_RESPONSE_CODE.BAD_REQUEST).json({ message: "Customer not found" });
+    }
+    return res.status(MESSAGE_RESPONSE_CODE.OK).json({ message: "Customer deleted", customer });
+  } catch (error) {
+    console.log(error);
+  }
+});
 
 module.exports = router;

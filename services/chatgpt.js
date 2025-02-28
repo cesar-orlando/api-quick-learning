@@ -5,6 +5,8 @@ const FormData = require("form-data");
 const geolib = require("geolib");
 const { default: axios } = require("axios");
 const { quickLearningCourses, student_custom_functions, dataChatGpt } = require("../db/data");
+const { type } = require("os");
+const userController = require("../controller/quicklearning/user.controller");
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
@@ -22,52 +24,51 @@ const tools = [
       },
     },
   },
-/*   {
-    type: "function",
-    function: {
-      name: "get_school_locations",
-      description: "Proporciona la dirección y ubicación de las sucursales de Quick Learning.",
-      parameters: {
-        type: "object",
-        properties: {},
-      },
-    },
-  }, */
   {
     type: "function",
     function: {
-      name: "report_teacher_issue",
-      description: "Recibe una queja de algo que le paso en la escuela y proporciona instrucciones para reportarlo.",
+      name: "register_user_name",
+      description: "Cuando un usuario proporciona su nombre completo, usa esta función para registrarlo y continuar con el proceso de inscripción.",
+      parameters: {
+        type: "object",
+        properties: {
+          full_name: {
+            type: "string",
+            description: "El nombre completo del usuario tal como lo proporcionó.",
+          },
+        },
+        required: ["full_name"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "submit_student_complaint",
+      description: "Si el usuario menciona una queja, problema, inconveniente con un maestro o con la escuela, usa esta función para ayudarle a reportarlo adecuadamente.",
       parameters: {
         type: "object",
         properties: {
           issue_details: {
             type: "string",
-            description: "Detalles de la queja o problema con el maestro.",
+            description: "Descripción de la queja del estudiante sobre un maestro o situación en la escuela.",
           },
         },
         required: ["issue_details"],
       },
     },
   },
- /*  {
+  {
     type: "function",
     function: {
-      name: "get_course_prices",
-      description: "Devuelve los precios de los cursos disponibles.",
+      name: "get_branches",
+      description: "Cuando el usuario pregunta por las sucursales, sedes o ubicaciones de Quick Learning, usa esta función para proporcionar esa información.",
       parameters: {
         type: "object",
-        properties: {
-          course_type: {
-            type: "string",
-            enum: ["intensivo", "semi-intensivo", "sabatino"],
-            description: "Tipo de curso para obtener su precio.",
-          },
-        },
-        required: ["course_type"],
+        properties: {},
       },
-    },
-  }, */
+    }
+  }
 ];
 
 // Funciones para cada tool
@@ -158,64 +159,67 @@ const get_start_dates = async (requestedDate = null, isGenericRequest = false) =
   }
 };
 
+const register_user_name = async (fullName, WaId) => {
 
-/* const get_school_locations = async (userLocation = null) => {
-  try {
-    // Petición al API de sedes
-    let configSedes = {
-      method: "get",
-      maxBodyLength: Infinity,
-      url: "http://localhost:3000/api/v1/sedes",
-      headers: {},
-    };
+  const getUsers = await userController.findAll();
+  const agentIndex = Math.floor(Math.random() * getUsers.length);
+  const agent = getUsers[agentIndex];
 
-    const responseSedes = await axios.request(configSedes);
-    const sedes = responseSedes.data; // Lista de sedes
+  await axios.put(`http://localhost:3000/api/v1/quicklearning/updatecustomer`, {
+    phone: WaId,
+    name: fullName,
+    classification: "Prospecto",
+    status: "Interesado",
+    user: agent,
+    ia: false
+  }).then((response) => {
+    console.log("response", response);
+  }).catch((error) => {
+    console.error("Error al obtener el historial de mensajes:", error.message);
+    return { data: { findMessages: [] } };
+  });
 
-    // **Caso 1: Si el usuario no proporciona ubicación**
-    if (!userLocation) {
-      return "📍 Para recomendarte la mejor sucursal, por favor dime en qué ciudad te encuentras. 😊";
-    }
+  return `¡Gracias, ${fullName}! Ahora que tengo tu nombre, puedo continuar con el proceso de inscripción. ¿Me puedes proporcionar tu número de contacto?`;
+};
 
-    // **Caso 2: Si el usuario proporciona ubicación, buscar la sede más cercana**
-    let closestSede = null;
-    let shortestDistance = Infinity;
+const submit_student_complaint = async (issueDetails, WaId) => {
+  const getUsers = await userController.findAll();
+  const agentIndex = Math.floor(Math.random() * getUsers.length);
+  const agent = getUsers[agentIndex];
 
-    sedes.forEach((sede) => {
-      const sedeLocation = geolib.convertAddressToGPS(sede.address); // Convertir dirección a coordenadas GPS
-      const distance = geolib.getDistance(userLocation, sedeLocation);
-
-      if (distance < shortestDistance) {
-        shortestDistance = distance;
-        closestSede = sede;
-      }
-    });
-
-    if (!closestSede) {
-      return "No pude encontrar una sucursal cercana. 😔 Pero dejame preguntar a un asesor para que nos ayude.";
-    }
-
-    // **Respuesta con la sede más cercana**
-    return `✅ La sucursal más cercana a ti es:\n🏫 *${closestSede.name}*\n📍 Dirección: ${closestSede.address}\n📞 Teléfono: ${closestSede.phone}\n\n¿Te gustaría que te ayude con más información o agendar una visita? 😊`;
-  } catch (error) {
-    console.error("Error al obtener las sedes:", error.message);
-    return "No pude obtener la información de sedes en este momento. Inténtalo más tarde.";
-  }
-}; */
-
-const report_teacher_issue = (issueDetails) => {
+  await axios.put(`http://localhost:3000/api/v1/quicklearning/updatecustomer`, {
+    phone: WaId,
+    classification: "Urgente",
+    status: "Queja",
+    user: agent,
+    ia: false
+  }).then((response) => {
+    console.log("response", response);
+  }).catch((error) => {
+    console.error("Error al obtener el historial de mensajes:", error.message);
+    return { data: { findMessages: [] } };
+  });
   return `⚠️ *Lamentamos escuchar esto.* Queremos ayudarte lo más rápido posible. Para dar seguimiento a tu reporte, por favor envíanos la siguiente información:\n\n📝 *Nombre completo*\n🏫 *Sucursal donde estás inscrito*\n📚 *Curso que estás tomando*\n⏰ *Horario en el que asistes*\n📢 *Detalles del problema:* "${issueDetails}"\n🎫 *Número de alumno*\n\nCon esta información, nuestro equipo podrá revisar tu caso y darte una solución lo antes posible. ¡Estamos para ayudarte! 😊`;
 };
 
-/* const get_course_prices = (courseType) => {
-  const prices = {
-    intensivo: "$5,150 MXN",
-    "semi-intensivo": "$3,310 MXN",
-    sabatino: "$3,310 MXN",
-  };
+const get_branches = async (WaId) => {
+  const getUsers = await userController.findAll();
+  const agentIndex = Math.floor(Math.random() * getUsers.length);
+  const agent = getUsers[agentIndex];
 
-  return `El precio del curso ${courseType} es ${prices[courseType]}. Puedes ver más información en https://quicklearning.com/precios.`;
-}; */
+  await axios.put(`http://localhost:3000/api/v1/quicklearning/updatecustomer`, {
+    phone: WaId,
+    classification: "Prospecto",
+    status: "Interesado",
+    user: agent,
+    ia: false
+  }).then((response) => {
+    console.log("response", response);
+  }).catch((error) => {
+    console.error("Error al obtener el historial de mensajes:", error.message);
+  });
+  return `Dime en qué ciudad te encuentras y te diré la sucursal más cercana.`;
+};
 
 const transcribeAudio = async (audioUrl) => {
   try {
@@ -276,7 +280,7 @@ const analyzeImage = async (imageUrl) => {
   }
 };
 
-module.exports = async function generatePersonalityResponse(message, number, mediaType, mediaUrl) {
+module.exports = async function generatePersonalityResponse(message, number, WaId, mediaType, mediaUrl) {
   try {
     let processedMessage = message;
 
@@ -307,20 +311,13 @@ module.exports = async function generatePersonalityResponse(message, number, med
     const initialContext = await dataChatGpt(); // Contexto de bienvenida o presentación, si aplica
 
     // 2. Obtener historial de mensajes del usuario
-    let numberData = JSON.stringify({ to: number });
-    let config = {
-      method: "post",
-      maxBodyLength: Infinity,
-      url: "http://localhost:3000/api/v2/whastapp/logs-messages",
-      headers: { "Content-Type": "application/json" },
-      data: numberData,
-    };
-
-    const response = await axios.request(config).catch((error) => {
+    const response = await axios.get(`http://localhost:3000/api/v1/chat/messages/${WaId}`).catch((error) => {
       console.error("Error al obtener el historial de mensajes:", error.message);
       return { data: { findMessages: [] } };
     });
-    let mapMessage = response.data.findMessages.reverse().map((msg) => ({
+
+
+    let mapMessage = response.data.messages.map((msg) => ({
       role: msg.direction === "outbound-api" ? "assistant" : "user",
       content: msg.body,
     }));
@@ -346,6 +343,9 @@ module.exports = async function generatePersonalityResponse(message, number, med
       tool_choice: "auto",
     });
 
+    console.log("Respuesta de OpenAI:", JSON.stringify(completion, null, 2));
+
+
     const toolCall = completion.choices[0].message.tool_calls?.[0];
 
     if (toolCall) {
@@ -355,14 +355,14 @@ module.exports = async function generatePersonalityResponse(message, number, med
       switch (functionName) {
         case "get_start_dates":
           return get_start_dates();
-        case "get_school_locations":
-          return get_school_locations();
-        case "report_teacher_issue":
-          return report_teacher_issue(functionArgs.issue_details);
-        case "get_course_prices":
-          return get_course_prices(functionArgs.course_type);
+        case "register_user_name":
+          return register_user_name(functionArgs.full_name, WaId);
+        case "submit_student_complaint":
+          return submit_student_complaint(functionArgs.issue_details, WaId);
+        case "get_branches":
+          return get_branches(WaId);
         default:
-          return "No pude procesar tu solicitud. Inténtalo de nuevo.";
+          return "Un asesor se pondrá en contacto contigo en breve.";
       }
     }
 

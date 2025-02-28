@@ -46,7 +46,7 @@ router.post("/send", async (req, res) => {
     }
 
     // Obtener solo los primeros 300 estudiantes
-    const limitedStudents = prospects.slice(0, 1002);
+    const limitedStudents = prospects.slice(2001, 3000);
 
     // IDs de usuarios para asignar aleatoriamente
     const userIds = [
@@ -204,7 +204,7 @@ router.post("/message", async (req, res) => {
           source: "",
           paymentType: "",
         },
-        user: agent._id,
+        user: "6791778aed7b7e3736119765",
         ia: true,
       };
       await customerController.create(data);
@@ -223,14 +223,14 @@ router.post("/message", async (req, res) => {
 
       // Enviar respuesta al usuario
       await client.messages.create({
-        body: "¡Hola! Soy NatalIA de Quick Learning, encantada de ayudarte. ¿Cómo te llamas?",
+        body: "¡Hola! Soy NatalIA de Quick Learning. Antes de darte toda la info, dime, ¿cómo te llamas?",
         from: "whatsapp:+5213341610749",
         to: userNumber,
       });
 
       chat.messages.push({
         direction: "outbound-api",
-        body: "¡Hola! Soy NatalIA de Quick Learning, encantada de ayudarte. ¿Cómo te llamas?",
+        body: "¡Hola! Soy NatalIA de Quick Learning. Antes de darte toda la info, dime, ¿cómo te llamas?",
       });
 
       await chat.save();
@@ -319,6 +319,7 @@ router.post("/message", async (req, res) => {
         const aiResponse = await generatePersonalityResponse(
           combinedMessage, // Mensaje combinado
           userNumber, // Número del usuario
+          WaId,
           MediaContentType0 || null, // Tipo de media, si existe
           MediaUrl0 || null // URL del media, si existe
         );
@@ -326,7 +327,8 @@ router.post("/message", async (req, res) => {
         // Enviar respuesta al usuario
         await client.messages.create({
           body: aiResponse,
-          from: "whatsapp:+5213341610749",
+          // from: "whatsapp:+5213341610749", //producción
+          from: "whatsapp:+5213341610750", // DEV
           to: userNumber,
         });
 
@@ -347,7 +349,7 @@ router.post("/message", async (req, res) => {
         // Limpiar el registro de mensajes del usuario
         delete messageCounts[userNumber];
       }
-    }, 30000); // 30 segundos de inactividad
+    }, 100 /* 30000 */); // 30 segundos de inactividad
 
     // Responder al webhook de Twilio
     res.status(200).json({ message: "Mensaje recibido y consolidando respuestas." });
