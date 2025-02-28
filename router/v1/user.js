@@ -160,4 +160,17 @@ router.put("/:id", async (req, res) => {
   }
 });
 
+/* actualizar un usuario sin validaciones*/
+router.put("/update/:id", async (req, res) => {
+  const { id } = req.params;
+  const data = req.body;
+  try {
+    const user = await userController.updateOneCustom({ _id: id }, data);
+    return res.status(MESSAGE_RESPONSE_CODE.OK).json({ message: MESSAGE_RESPONSE.OK, user });
+  } catch (error) {
+    return res.status(MESSAGE_RESPONSE_CODE.BAD_REQUEST).json({ message: error.message });
+  }
+});
+
+
 module.exports = router;

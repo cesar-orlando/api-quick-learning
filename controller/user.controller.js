@@ -25,7 +25,7 @@ class userController {
   }
 
   async findAll() {
-    const users = await user.find({ permissions: 3 });
+    const users = await user.find({ permissions: 3, status: STATUS.ACTIVE });
     return users;
   }
 
