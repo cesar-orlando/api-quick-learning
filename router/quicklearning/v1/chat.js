@@ -3,6 +3,7 @@ const router = express.Router();
 const axios = require("axios");
 const Chat = require("../../../models/quicklearning/chats"); // Modelo de chats
 const customerController = require("../../../controller/quicklearning/customer.controller"); // Controlador de clientes
+const userController = require("../../../controller/quicklearning/user.controller");
 
 router.get("/sync-chats", async (req, res) => {
     try {
@@ -217,7 +218,53 @@ router.post("/unify-chat", async (req, res) => {
 router.get("/messages", async (req, res) => {
     try {
         const chats = await Chat.find();
-        res.status(200).json({chatstotal: chats.length, chats: chats});
+        res.status(200).json({ chatstotal: chats.length, chats: chats });
+
+    } catch (error) {
+        console.error("❌ Error al obtener mensajes:", error);
+        res.status(500).json({ message: "Error al obtener mensajes." });
+    }
+});
+
+/* Traeme todos los chats que tenga Me interesa y asignalos a un usuario */
+router.get("/messages/assign", async (req, res) => {
+    try {
+        const chats = await Chat.find();
+
+        // Filtrar chats que tienen exactamente "Me interesa" en algún mensaje
+        let chatsToAssign = chats.filter(c =>
+            c.messages.some(m => {
+                const messageText = m.body.trim().toLowerCase();
+                return messageText === "me interesa" || messageText.includes("costo");
+            })
+        );
+
+        // Obtener todos los usuarios disponibles
+        const getUsers = await userController.findAll();
+        if (getUsers.length === 0) {
+            return res.status(500).json({ message: "No hay usuarios disponibles para asignar." });
+        }
+
+        // Asignar cada chat a un usuario al azar
+        for (let chat of chatsToAssign) {
+            const agentIndex = Math.floor(Math.random() * getUsers.length);
+            const agent = getUsers[agentIndex];
+
+            await axios.put(`http://localhost:3000/api/v1/quicklearning/updatecustomer`, {
+                phone: chat.phone,
+                //name: chat.name, // Asumiendo que el nombre está en el chat, si no, ajusta según sea necesario
+                classification: "Prospecto",
+                status: "Interesado",
+                user: agent,
+                ia: false
+            }).then((response) => {
+                console.log("response", response.data);
+            }).catch((error) => {
+                console.error("Error al actualizar el cliente:", error.message);
+            });
+        }
+
+        res.status(200).json({ chatstotal: chatsToAssign.length, chats: chatsToAssign });
 
     } catch (error) {
         console.error("❌ Error al obtener mensajes:", error);

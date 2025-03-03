@@ -146,39 +146,46 @@ router.put("/updatecustomer", async (req, res) => {
   }
 });
 
-/* EP to update client with phone */
-router.put("/updatecustomer/:phone", async (req, res) => {
+/* Eliminar todos los customer repetidos */
+router.get("/delete-duplicates", async (req, res) => {
   try {
-    const { phone } = req.params;
+    console.log("🔍 Eliminando clientes duplicados...")
+    const customers = await customerController.getAllCustom();
+    const phones = customers.map(c => c.phone);
 
-    // Obtener todos los usuarios
-    const users = await userController.findAll();
-    if (!users || users.length === 0) {
-      return res.status(500).json({ message: "No se encontraron usuarios para asignar." });
-    }
+    let duplicates = [];
+    let uniquePhones = new Set();
 
-    // Función para obtener un ID de usuario aleatorio
-    const getRandomUserId = () => users[Math.floor(Math.random() * users.length)]._id;
-
-    // Buscar y actualizar el cliente
-    const updatedCustomer = await customerController.updateOneCustom(
-      { phone: phone },
-      {
-        ia: false,
-        user: getRandomUserId(),
-        classification: "Prospecto",
-        status: "Interesado"
+    for (let i = 0; i < phones.length; i++) {
+      let phone = phones[i];
+      if (uniquePhones.has(phone)) {
+        duplicates.push(phone);
+      } else {
+        uniquePhones.add(phone);
       }
-    );
-
-    if (!updatedCustomer) {
-      return res.status(404).json({ message: "Cliente no encontrado" });
     }
 
-    return res.status(200).json({ message: "Cliente actualizado", customer: updatedCustomer });
+    console.log(`🔍 Se encontraron ${duplicates.length} clientes duplicados.`);
+    console.log("🔍 Teléfonos duplicados:", duplicates);
+
+    // Eliminar los clientes duplicados
+    let deletedCustomers = [];
+    for (let i = 0; i < duplicates.length; i++) {
+      let phone = duplicates[i];
+      let customer = await customerController.deleteOneCustom({ phone });
+      deletedCustomers.push(customer);
+    }
+
+    console.log(`✅ Se eliminaron ${deletedCustomers.length} clientes duplicados.`);
+    res.status(200).json({
+      message: "Clientes duplicados eliminados",
+      total: deletedCustomers.length,
+      customers: deletedCustomers
+    });
+
   } catch (error) {
-    console.error("❌ Error al actualizar el cliente:", error);
-    return res.status(500).json({ message: "Error interno del servidor", error: error.message });
+    console.error("❌ Error al eliminar clientes duplicados:", error);
+    res.status(500).json({ message: "Error al eliminar clientes duplicados." });
   }
 });
 

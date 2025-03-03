@@ -69,6 +69,30 @@ class userController {
     const data = await user.find({permissions: 3}).sort({balance: -1}).limit(1);
     return data;
   }
+
+  async updateStatus() {
+    const specificUsers = [
+      "Joanna Esmeralda Delabra Pelaez",
+      "Reagan Alanis Jiménez Vilchis",
+      "Joyce Montserrat Dorantes Martínez",
+      "Yerali Jocelyne Leyva Rodríguez",
+      "Beatriz Barragán Lozano",
+      "Jimena Segura Dorantes",
+      "Yair Valades Venegas",
+      "Julio César Cortés Cebada",
+      "Andrea Perez Cordoba"
+    ];
+
+    // Cambiar el status de los usuarios específicos a 1
+    await user.updateMany({ name: { $in: specificUsers }, permissions: 3 }, { $set: { status: 1 } });
+
+    // Cambiar el status de los demás usuarios a 2
+    await user.updateMany({ name: { $nin: specificUsers }, permissions: 3 }, { $set: { status: 2 } });
+
+    // Obtener los usuarios actualizados
+    const updatedUsers = await user.find({ permissions: 3 });
+    return updatedUsers;
+  }
 }
 
 module.exports = new userController();

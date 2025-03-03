@@ -106,6 +106,18 @@ router.get("/top", async (req, res) => {
   }
 });
 
+/* actualiza todos los usuarios con permissions de 3 que tengan status 1 a 2 y los que tengan status de 2 a 1 */
+router.put("/update-status", async (req, res) => {
+  try {
+    const users = await userController.updateStatus();
+    return res.status(MESSAGE_RESPONSE_CODE.OK).json({ message: MESSAGE_RESPONSE.OK, users });
+  } catch (error) {
+    return res.status(MESSAGE_RESPONSE_CODE.BAD_REQUEST).json({ message: error.message });
+  }
+}
+);
+
+
 /* EP para saber los roles de lo usuarios. */
 router.get("/roles", async (req, res) => {
   try {

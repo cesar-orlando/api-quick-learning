@@ -7,7 +7,7 @@ const generateAgentTest = require("../../../services/bot_test");
 const customerController = require("../../../controller/customer.controller");
 const userController = require("../../../controller/user.controller");
 const Chat = require("../../../models/quicklearning/chats");
-const { prospects } = require("../../../db/dataStudents");
+const { prospects, students2 } = require("../../../db/dataStudents");
 const keywordClassification = require("../../../db/keywords");
 const schoolAdmissionsAgent = require("../../../services/realstate/bot_prueba");
 
@@ -41,30 +41,19 @@ router.post("/", async (req, res) => {
 router.post("/send", async (req, res) => {
   try {
 
-    if (!prospects || !Array.isArray(prospects) || prospects.length === 0) {
+    if (!students2 || !Array.isArray(students2) || students2.length === 0) {
       return res.status(400).json({ message: "No se encontraron alumnos en la petición." });
     }
 
     // Obtener solo los primeros 300 estudiantes
-    const limitedStudents = prospects.slice(2001, 3000);
-
-    // IDs de usuarios para asignar aleatoriamente
-    const userIds = [
-      "67b897169de9a9bb8a2cf051",
-      "67b8972c9de9a9bb8a2cf054",
-      "67b8973c9de9a9bb8a2cf057",
-      "67b8974c9de9a9bb8a2cf05a",
-      "67b8975a9de9a9bb8a2cf05d"
-    ];
-
-    const getRandomUserId = () => userIds[Math.floor(Math.random() * userIds.length)];
+    const limitedStudents = students2.slice(1000, 3000);
 
     let results = [];
     let messagesSent = 0;
 
-    
+
     for (let student of limitedStudents) {
-      const { Telefono, "Coment Asistentes": name } = student;
+      const { "Teléfono": Telefono, "Alumno": name } = student;
       // Limpiar el número de teléfono
       let cleanedPhone = Telefono.replace(/\s+/g, "").replace(/[()]/g, "").replace(/^\+1/, "");
       let phone = `whatsapp:+521${cleanedPhone}`;
@@ -90,7 +79,7 @@ router.post("/send", async (req, res) => {
       // Verificar si el alumno ya existe en la base de datos
       let existingCustomer = await customerController.findOneCustom({ celphone });
 
-      let existingChat = await Chat.findOne({ phone: celphone, "messages.body": /Hola, soy NatalIA/ });
+      let existingChat = await Chat.findOne({ phone: celphone, "messages.body": /📢 ¡Solo POR HOY! 🎉🔥/ });
 
       if (existingChat) {
         console.log(`🔍 Cliente ${phone} ya recibió el mensaje. Saltando...`);
@@ -99,32 +88,35 @@ router.post("/send", async (req, res) => {
 
       if (!existingCustomer) {
         // Crear un nuevo cliente si no existe
-        const newCustomer = {
-          name,
-          phone: celphone,
-          comments: "Envio de chats",
-          classification: "No contesta",
-          status: "Sin interacción",
-          visitDetails: { branch: "", date: "", time: "" },
-          enrollmentDetails: {
-            consecutive: "",
-            course: "",
-            modality: "",
-            state: "",
-            email: email,
-            source: "",
-            paymentType: student.Monto,
-          },
-          user: getRandomUserId(), // Puedes asignar un usuario si es necesario
-          ia: true,
-        };
-        await customerController.create(newCustomer);
+        const validateUser = await customerController.findOneCustom({ phone: celphone });
+        if (!validateUser) {
+          const newCustomer = {
+            name,
+            phone: celphone,
+            comments: "Envio de chats",
+            classification: "No contesta",
+            status: "Sin interacción",
+            visitDetails: { branch: "", date: "", time: "" },
+            enrollmentDetails: {
+              consecutive: "",
+              course: "",
+              modality: "",
+              state: "",
+              email: email,
+              source: "",
+              paymentType: student.Monto,
+            },
+            user: "6791778aed7b7e3736119765", // Puedes asignar un usuario si es necesario
+            ia: true,
+          };
+          await customerController.create(newCustomer);
+        }
       }
 
       // Enviar mensaje de WhatsApp
       try {
         const message = await client.messages.create({
-          contentSid: "HXd5351b1cba0581ae33b5db1a8f16209a", // Content SID correcto
+          contentSid: "HXabe2bd97ca373c2f29e553e38d578fd7", // Content SID correcto
           //contentVariables: JSON.stringify({ 1: firstName }), // Reemplaza {{1}} con el nombre del cliente
           from: "whatsapp:+5213341610749",
           to: `${phone}`,
@@ -145,12 +137,16 @@ router.post("/send", async (req, res) => {
 
           chat.messages.push({
             direction: "outbound-api",
-            body: `Hola, soy NatalIA 
+            body: `📢 ¡Solo POR HOY! 🎉🔥
 
-Notamos que estuviste interesado en nuestros cursos en Quick Learning, pero no hemos podido confirmar tu inscripción. 📚✨
+🌎 Aprende inglés con nuestros cursos ONLINE 🖥 con Quick Learning y aprovecha nuestra MEJOR promoción:
 
-🎯 ¿Sigues interesado en mejorar tu inglés de manera rápida y efectiva?
-📅 Tenemos cupos limitados y una oferta especial para ti.`,
+💥 Paga 3 meses y recibe 3 GRATIS
+💥 Paga 6 meses y recibe 6 GRATIS
+
+📲 ¡No dejes pasar esta oportunidad única! Escríbeme ahora para más detalles y asegura tu lugar. ⏳✨
+
+📌 Promoción válida solo HOY. Recuerda que en Quick Learning ¡Hablas o hablas!`,
           });
 
           await chat.save();
@@ -327,8 +323,8 @@ router.post("/message", async (req, res) => {
         // Enviar respuesta al usuario
         await client.messages.create({
           body: aiResponse,
-          // from: "whatsapp:+5213341610749", //producción
-          from: "whatsapp:+5213341610750", // DEV
+          from: "whatsapp:+5213341610749", //producción
+          //from: "whatsapp:+5213341610750", // DEV
           to: userNumber,
         });
 
