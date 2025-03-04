@@ -46,7 +46,7 @@ router.post("/send", async (req, res) => {
     }
 
     // Obtener solo los primeros 300 estudiantes
-    const limitedStudents = students2.slice(1000, 3000);
+    const limitedStudents = students2.slice(3001, 5000);
 
     let results = [];
     let messagesSent = 0;
@@ -164,6 +164,77 @@ router.post("/send", async (req, res) => {
   } catch (error) {
     console.error("❌ Error en el endpoint:", error.message);
     return res.status(500).json({ message: "Error interno del servidor", error: error.message });
+  }
+});
+
+router.post("/send-message-quick-learning", async (req, res) => {
+  try {
+    const { phone, name } = req.body;
+
+    if (!phone || !name) {
+      return res.status(400).json({ message: "Falta teléfono o nombre" });
+    }
+
+    // Verificar si el número de teléfono tiene 13 dígitos
+    if (phone.length !== 13) {
+      return res.status(400).json({ message: "Número de teléfono inválido" });
+    }
+
+    // Verificar si el alumno ya existe en la base de datos
+    let existingCustomer = await customerController.findOneCustom({ phone });
+    if (!existingCustomer) {
+      return res.status(400).json({ message: "El usuario no existe en la base de datos" });
+    }
+
+    // traer el primero nombre
+    const firstName = name.split(" ")[0];
+
+    const message = await client.messages.create({
+      contentSid: "HXe49204f2bbf29e00b1f3eddf31d60c00", // Content SID correcto es para remotar la conversación
+      contentVariables: JSON.stringify({ 1: firstName }), // Reemplaza {{1}} con el nombre del cliente
+      from: "whatsapp:+5213341610749",
+      to: `whatsapp:+${phone}`,
+    });
+
+    console.log("✅ Mensaje enviado a", phone, "con nombre:", name);
+    console.log("message.sid --->", message.sid);
+
+    // Crear conversación en la base de datos
+    let chat;
+    try {
+      chat = await Chat.findOne({ phone });
+      if (!chat) {
+        chat = new Chat({ phone });
+      }
+
+      chat.messages.push({
+        direction: "outbound-api",
+        body: `Hola ${name},
+
+No quieremos que te quedes fuera. 🚀 Este curso te dará la confianza para hablar inglés en tiempo récord.
+
+✅ Lugares limitados
+✅ Resultados garantizados
+✅ El mejor método sin tareas ni gramática aburrida
+✅ Varias modalidades: presencial, virtual y online. 
+
+Solo dime "Sí" y te ayudo a asegurar tu lugar ahora mismo. ¿Qué dices? 🔥
+
+Quick Learning – ¡Hablas o hablas!`
+      });
+
+      await chat.save();
+      console.log("✅ Chat guardado para el teléfono:", phone);
+
+      return res.status(200).json({ message: "Mensaje enviado", message });
+    } catch (error) {
+      console.error("❌ Error al guardar el chat para el teléfono:", phone, error);
+      return res.status(500).json({ message: "Error al guardar el chat", error: error.message });
+    }
+
+  } catch (error) {
+    console.log("error.message --->", error);
+    return res.status(400).json({ message: error.message });
   }
 });
 
