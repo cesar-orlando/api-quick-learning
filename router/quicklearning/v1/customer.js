@@ -15,7 +15,12 @@ const openai = new OpenAI({
 
 router.get("/list", async (req, res) => {
   try {
-    console.log("🔍 Obteniendo lista completa de clientes...");
+    console.log("🔍 Iniciando envío de lista de clientes en tiempo real...");
+
+    // Configurar headers para SSE
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
 
     // 1️⃣ Obtener todos los clientes
     const customers = await customerController.getAllCustom();
@@ -27,36 +32,104 @@ router.get("/list", async (req, res) => {
     // 3️⃣ Cruzar los clientes con sus conversaciones
     let customersWithConversations = customers.map(customer => {
       const chat = chats.find(c => c.phone === customer.phone);
-      return { ...customer.toObject(), messages: chat ? chat.messages : [] };
+      return {
+        ...customer.toObject(),
+        messages: chat ? chat.messages : [],
+        lastMessageDate: chat && chat.messages.length > 0
+          ? new Date(chat.messages[chat.messages.length - 1].dateCreated)
+          : new Date(0), // Fecha mínima si no hay mensajes
+      };
     });
 
-    // 4️⃣ Ordenar según prioridad
-    customersWithConversations.sort((a, b) => {
-      const priorityMap = {
-        "Prospecto_Interesado": 3,  // 🔝 Máxima prioridad
-        "Urgente_Queja": 3,         // 🔝 Máxima prioridad
-        "No contesta_Sin interacción": 0, // 🔽 Menor prioridad, al final
-      };
+    // 4️⃣ Definir prioridad de clasificación y estado
+    const priorityMap = {
+      "Prospecto_Interesado": 3,  // 🔝 Máxima prioridad
+      "Urgente_Queja": 3,         // 🔝 Máxima prioridad
+      "No contesta_Sin interacción": 0, // 🔽 Menor prioridad, al final
+    };
 
+    // 5️⃣ Ordenar según prioridad y fecha del último mensaje
+    customersWithConversations.sort((a, b) => {
       const priorityA = priorityMap[`${a.classification}_${a.status}`] || 1;
       const priorityB = priorityMap[`${b.classification}_${b.status}`] || 1;
 
-      return priorityB - priorityA; // Ordenar de mayor a menor prioridad
+      if (priorityA !== priorityB) {
+        return priorityB - priorityA; // Ordenar primero por prioridad
+      }
+
+      // Si tienen la misma prioridad, ordenar por la fecha del último mensaje (de más reciente a más antiguo)
+      return b.lastMessageDate - a.lastMessageDate;
     });
 
     console.log(`✅ Se encontraron ${customersWithConversations.length} clientes.`);
 
+    // 6️⃣ Enviar los datos en partes
+    for (let i = 0; i < customersWithConversations.length; i++) {
+      const customer = customersWithConversations[i];
+      console.log("customer", customer);
+      res.write(`data: ${JSON.stringify(customer)}\n\n`); // Enviar cada cliente como un evento SSE
+
+      // Simular un retraso para enviar los datos poco a poco (opcional)
+      await new Promise(resolve => setTimeout(resolve, 100)); // 100ms de retraso
+    }
+
+    // 7️⃣ Finalizar la conexión
+    res.write(`event: end\n`);
+    res.write(`data: {"message": "Todos los clientes enviados"}\n\n`);
+    res.end();
+
+  } catch (error) {
+    console.error("❌ Error al obtener la lista de clientes:", error);
+    res.write(`event: error\n`);
+    res.write(`data: {"message": "Error al obtener la lista de clientes"}\n\n`);
+    res.end();
+  }
+});
+
+//ayudame a sacar el total de mensajes enviados
+router.get("/total-messages", async (req, res) => {
+  try {
+    console.log("🔍 Obteniendo el total de mensajes enviados...");
+
+    const customers = await customerController.getAllCustom();
+    const phones = customers.map(c => c.phone);
+    const chats = await Chat.find({ phone: { $in: phones } });
+
+    let totalMessages = 0;
+    chats.forEach(chat => {
+      totalMessages += chat.messages.length;
+    });
+
+    console.log(`✅ Se encontraron ${totalMessages} mensajes enviados.`);
+
     res.status(200).json({
-      message: "Full customer list with prioritized conversations",
-      total: customersWithConversations.length,
-      customers: customersWithConversations
+      message: "Total de mensajes enviados",
+      total: totalMessages
     });
 
   } catch (error) {
-    console.error("❌ Error al obtener la lista completa de clientes:", error);
-    res.status(500).json({ message: "Error al obtener la lista de clientes." });
+    console.error("❌ Error al obtener el total de mensajes enviados:", error);
+    res.status(500).json({ message: "Error al obtener el total de mensajes enviados." });
   }
 });
+
+/* EP para traer a todos los prospectos interesados. */
+router.get("/prospectos-interesados", async (req, res) => {
+  try {
+    const customers = await customerController.getAllCustom();
+    const prospectosInteresados = customers.filter((customer) => {
+      return customer.classification === "Prospecto" && customer.status === "Interesado";
+    });
+    res.status(MESSAGE_RESPONSE_CODE.OK).json({ message: MESSAGE_RESPONSE.OK, total: prospectosInteresados.length, customers: prospectosInteresados });
+  } catch (error) {
+    res.json({
+      code: MESSAGE_RESPONSE_CODE.ERROR,
+      message: MESSAGE_RESPONSE.ERROR,
+    });
+  }
+});
+
+
 
 router.get("/responded-to-message", async (req, res) => {
   try {

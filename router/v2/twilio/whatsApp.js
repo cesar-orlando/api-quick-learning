@@ -46,7 +46,7 @@ router.post("/send", async (req, res) => {
     }
 
     // Obtener solo los primeros 300 estudiantes
-    const limitedStudents = students2.slice(3001, 5000);
+    const limitedStudents = students2.slice(0, 2000);
 
     let results = [];
     let messagesSent = 0;
@@ -79,7 +79,7 @@ router.post("/send", async (req, res) => {
       // Verificar si el alumno ya existe en la base de datos
       let existingCustomer = await customerController.findOneCustom({ celphone });
 
-      let existingChat = await Chat.findOne({ phone: celphone, "messages.body": /📢 ¡Solo POR HOY! 🎉🔥/ });
+      let existingChat = await Chat.findOne({ phone: celphone, "messages.body": /📢✨ ¡Aprender inglés nunca fue tan accesible! ✨📢/ });
 
       if (existingChat) {
         console.log(`🔍 Cliente ${phone} ya recibió el mensaje. Saltando...`);
@@ -116,7 +116,7 @@ router.post("/send", async (req, res) => {
       // Enviar mensaje de WhatsApp
       try {
         const message = await client.messages.create({
-          contentSid: "HXabe2bd97ca373c2f29e553e38d578fd7", // Content SID correcto
+          contentSid: "HX60642933d9503ad7fd2f8031f8901beb", // Content SID correcto
           //contentVariables: JSON.stringify({ 1: firstName }), // Reemplaza {{1}} con el nombre del cliente
           from: "whatsapp:+5213341610749",
           to: `${phone}`,
@@ -137,16 +137,17 @@ router.post("/send", async (req, res) => {
 
           chat.messages.push({
             direction: "outbound-api",
-            body: `📢 ¡Solo POR HOY! 🎉🔥
+            body: `📢✨ ¡Aprender inglés nunca fue tan accesible! ✨📢
 
-🌎 Aprende inglés con nuestros cursos ONLINE 🖥 con Quick Learning y aprovecha nuestra MEJOR promoción:
+Por menos de lo que gastas en un café al día, puedes mejorar tu inglés con Quick Learning. ☕➡📚 ¡Hablas o hablas! 
 
-💥 Paga 3 meses y recibe 3 GRATIS
-💥 Paga 6 meses y recibe 6 GRATIS
+🔥 Clases dinámicas y efectivas
+🔥 Método rápido y comprobado
+🔥 Precios accesibles
 
-📲 ¡No dejes pasar esta oportunidad única! Escríbeme ahora para más detalles y asegura tu lugar. ⏳✨
+🚀 No dejes pasar esta oportunidad. ¡Inscríbete hoy y comienza a hablar inglés con confianza!
 
-📌 Promoción válida solo HOY. Recuerda que en Quick Learning ¡Hablas o hablas!`,
+📩 Escribe "QUIERO APRENDER" y te damos toda la info`,
           });
 
           await chat.save();
@@ -441,6 +442,38 @@ router.post("/logs-messages", async (req, res) => {
   });
   let findMessages = filteredMessages.filter((message) => req.body.to === message.to || req.body.to === message.from);
   return res.status(200).json({ findMessages });
+});
+
+//Quiero traer los costos de todos los mensajes enviados
+router.get("/cost-messages", async (req, res) => {
+  try {
+    const messages = await client.messages.list();
+
+    let filteredMessages = messages.map((message) => {
+      return {
+        sid: message.sid,
+        direction: message.direction,
+        from: message.from,
+        to: message.to,
+        body: message.body,
+        dateCreated: message.dateCreated,
+        price: message.price,
+      };
+    });
+
+    // Filtrar mensajes con precio válido (no null)
+    let validMessages = filteredMessages.filter((message) => message.price !== null);
+
+    // Sumar los costos de los mensajes enviados
+    let totalCost = validMessages.reduce((acc, message) => {
+      return acc + parseFloat(message.price);
+    }, 0);
+
+    return res.status(200).json({ total: totalCost, filteredMessagesTotal: filteredMessages.length, filteredMessages: validMessages });
+  } catch (error) {
+    console.error("Error al obtener los costos de los mensajes:", error.message);
+    return res.status(500).json({ message: "Error al obtener los costos de los mensajes." });
+  }
 });
 
 router.post("/prueba", async (req, res) => {
