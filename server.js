@@ -3,6 +3,7 @@ const app = express();
 const cors = require("cors");
 require("dotenv").config();
 const { default: mongoose } = require('mongoose');
+const path = require("path");
 /* Bland IA */
 const call = require("./router/v1/callSend");
 const listCalls = require("./router/v1/listCalls");
@@ -45,6 +46,9 @@ app.use("/api/v2/realstate", require("./router/v2/twilio/realState"));
 //Twilio
 app.use("/api/v2/voice", voice);
 app.use("/api/v2/whastapp", whatsApp);
+app.use("/api/v1/quicklearning/calls", require("./router/quicklearning/v1/calls"));
+app.use("/audio", express.static(path.join(__dirname, "public/audio")));
+
 
 //Follow Up Boss
 app.use("/api/v2/followupboss", followupboss);
