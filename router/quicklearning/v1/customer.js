@@ -30,7 +30,12 @@ router.get("/list", async (req, res) => {
       return { ...customer.toObject(), messages: chat ? chat.messages : [] };
     });
 
-    // 4️⃣ Ordenar según prioridad
+    // 4️⃣ Filtrar clientes que tienen al menos un mensaje inbound (enviado por el cliente)
+    customersWithConversations = customersWithConversations.filter(customer => {
+      return customer.messages.some(message => message.direction === "inbound");
+    });
+
+    // 5️⃣ Ordenar según prioridad y fecha del último mensaje del cliente
     customersWithConversations.sort((a, b) => {
       const priorityMap = {
         "Prospecto_Interesado": 3,  // 🔝 Máxima prioridad
@@ -41,13 +46,26 @@ router.get("/list", async (req, res) => {
       const priorityA = priorityMap[`${a.classification}_${a.status}`] || 1;
       const priorityB = priorityMap[`${b.classification}_${b.status}`] || 1;
 
-      return priorityB - priorityA; // Ordenar de mayor a menor prioridad
+      if (priorityA !== priorityB) {
+        return priorityB - priorityA; // Ordenar primero por prioridad
+      }
+
+      // Si tienen la misma prioridad, ordenar por la fecha del último mensaje inbound (más reciente primero)
+      const lastInboundMessageA = a.messages
+        .filter(message => message.direction === "inbound")
+        .reduce((latest, message) => new Date(message.dateCreated) > new Date(latest.dateCreated) ? message : latest, { dateCreated: 0 });
+
+      const lastInboundMessageB = b.messages
+        .filter(message => message.direction === "inbound")
+        .reduce((latest, message) => new Date(message.dateCreated) > new Date(latest.dateCreated) ? message : latest, { dateCreated: 0 });
+
+      return new Date(lastInboundMessageB.dateCreated) - new Date(lastInboundMessageA.dateCreated); // Orden descendente
     });
 
-    console.log(`✅ Se encontraron ${customersWithConversations.length} clientes.`);
+    console.log(`✅ Se encontraron ${customersWithConversations.length} clientes con mensajes inbound.`);
 
     res.status(200).json({
-      message: "Full customer list with prioritized conversations",
+      message: "Clientes ordenados por prioridad y último mensaje del cliente",
       total: customersWithConversations.length,
       customers: customersWithConversations
     });

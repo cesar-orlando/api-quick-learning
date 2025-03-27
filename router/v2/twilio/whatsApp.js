@@ -191,7 +191,7 @@ router.post("/send-message-quick-learning", async (req, res) => {
     const firstName = name.split(" ")[0];
 
     const message = await client.messages.create({
-      contentSid: "HXe49204f2bbf29e00b1f3eddf31d60c00", // Content SID correcto es para remotar la conversación
+      contentSid: "HXa25e27e01d0a93a41a5871e703787526", // Content SID correcto es para remotar la conversación
       contentVariables: JSON.stringify({ 1: firstName }), // Reemplaza {{1}} con el nombre del cliente
       from: "whatsapp:+5213341610749",
       to: `whatsapp:+${phone}`,
@@ -211,17 +211,12 @@ router.post("/send-message-quick-learning", async (req, res) => {
       chat.messages.push({
         direction: "outbound-api",
         body: `Hola ${name},
-
-No quieremos que te quedes fuera. 🚀 Este curso te dará la confianza para hablar inglés en tiempo récord.
-
-✅ Lugares limitados
-✅ Resultados garantizados
-✅ El mejor método sin tareas ni gramática aburrida
-✅ Varias modalidades: presencial, virtual y online. 
-
-Solo dime "Sí" y te ayudo a asegurar tu lugar ahora mismo. ¿Qué dices? 🔥
-
-Quick Learning – ¡Hablas o hablas!`
+Para continuar con tu proceso de inscripción a los cursos de inglés de Quick Learning 🏫, solo necesitamos confirmar algunos datos contigo:
+Modalidad preferida (presencial, virtual u online)
+Horario que te acomode mejor 📅
+Datos de contacto (teléfono o correo) ☎️
+Una vez con esa info, te podemos apartar un lugar y enviarte los detalles completos del curso 📚.
+¿Te gustaría avanzar con eso esta semana?`
       });
 
       await chat.save();
