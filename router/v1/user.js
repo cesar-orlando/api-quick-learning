@@ -96,6 +96,17 @@ router.get("/", async (req, res) => {
   }
 });
 
+router.get("/all", async (req, res) => {
+  try {
+    const users = await userController.getAll();
+    return res.status(MESSAGE_RESPONSE_CODE.OK).json({ users });
+    
+  } catch (error) {
+    return res.status(MESSAGE_RESPONSE_CODE.BAD_REQUEST).json({ message: error.message });
+    
+  }
+});
+
 /* EndPoint para traer al usuario con mas ventas. */
 router.get("/top", async (req, res) => {
   try {

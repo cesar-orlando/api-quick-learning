@@ -29,6 +29,11 @@ class userController {
     return users;
   }
 
+  async getAll(){
+    const users = await user.find();
+    return users;
+  }
+
   async getAllCustom(filter, paginator) {
     let users;
     filter.status = { $in: [STATUS.ACTIVE, STATUS.INACTIVO] };
