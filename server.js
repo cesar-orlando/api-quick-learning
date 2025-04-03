@@ -29,6 +29,7 @@ app.use("/api/v1/promo", require("./router/v1/promo"));
 /* Quick Learning */
 app.use("/api/v1/quicklearning", require("./router/quicklearning/v1/customer"));
 app.use("/api/v1/chat", require("./router/quicklearning/v1/chat"));
+app.use("/api/v1/quicklearning/calls", require("./router/quicklearning/v1/calls"));
 
 /* Monex */
 app.use("/api/v1/monex", require("./router/v1/monex/customers"));
@@ -42,12 +43,13 @@ app.use("/api/v1/calldetails", callDetails);
 
 /* Real State */
 app.use("/api/v2/realstate", require("./router/v2/twilio/realState"));
+app.use("/api/v1/realstate/calls", require("./router/realstate/calls"));
 
 //Twilio
 app.use("/api/v2/voice", voice);
 app.use("/api/v2/whastapp", whatsApp);
-app.use("/api/v1/quicklearning/calls", require("./router/quicklearning/v1/calls"));
-app.use("/audio", express.static(path.join(__dirname, "public/audio")));
+app.use(express.static(path.join(__dirname, "public")));
+
 
 
 //Follow Up Boss
