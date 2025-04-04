@@ -12,24 +12,24 @@ class customerQLController {
       status: data?.status ? data?.status : STATUS_CUSTOMER.PENDIENTE,
       visitDetails: data?.visitDetails
         ? {
-            branch: data.visitDetails.branch,
-            date: data.visitDetails.date,
-            time: data.visitDetails.time,
-          }
+          branch: data.visitDetails.branch,
+          date: data.visitDetails.date,
+          time: data.visitDetails.time,
+        }
         : {}, // Valores predeterminados vacíos
       enrollmentDetails: data?.enrollmentDetails
         ? {
-            consecutive: data.enrollmentDetails.consecutive,
-            course: data.enrollmentDetails.course,
-            modality: data.enrollmentDetails.modality,
-            state: data.enrollmentDetails.state,
-            email: data.enrollmentDetails.email,
-            source: data.enrollmentDetails.source,
-            paymentType: data.enrollmentDetails.paymentType,
-          }
+          consecutive: data.enrollmentDetails.consecutive,
+          course: data.enrollmentDetails.course,
+          modality: data.enrollmentDetails.modality,
+          state: data.enrollmentDetails.state,
+          email: data.enrollmentDetails.email,
+          source: data.enrollmentDetails.source,
+          paymentType: data.enrollmentDetails.paymentType,
+        }
         : {}, // Valores predeterminados vacíos
-        ia: data.ia !== undefined ? data.ia : true, // Predeterminado: true
-        agent: data?.agent ? data?.agent : "",
+      ia: data.ia !== undefined ? data.ia : true, // Predeterminado: true
+      agent: data?.agent ? data?.agent : "",
     });
     return customerData ? customerData : false;
   }
@@ -47,7 +47,7 @@ class customerQLController {
   }
 
   async getAllCustom() {
-    return await customer.find().sort({ creationDate: -1 });
+    return await customer.find();
   }
 
   async getByIDCustom(id) {
@@ -101,6 +101,14 @@ class customerQLController {
     const customerData = await customer.bulkWrite(data);
     return customerData ? customerData : false;
   }
+  async getAllCustomPaginated(page, limit) {
+    const skip = (page - 1) * limit;
+    const customers = await customer.find().skip(skip).limit(limit);
+    const total = await customer.countDocuments();
+    return { customers, total };
+  }
+
 }
+
 
 module.exports = new customerQLController();

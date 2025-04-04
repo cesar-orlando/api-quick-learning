@@ -9,73 +9,87 @@ const moment = require("moment");
 const Chat = require("../../../models/quicklearning/chats");
 const keywordClassification = require("../../../db/keywords");
 const userController = require("../../../controller/quicklearning/user.controller");
+const { emitCustomerUpdate } = require("../../../utils/socket-events");
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY, // Tu API Key de OpenAI
 });
 
 router.get("/list", async (req, res) => {
   try {
-    console.log("🔍 Obteniendo lista completa de clientes...");
+    console.time("⏱️ Tiempo de ejecución");
+    console.log("🔍 Obteniendo lista paginada de clientes...");
 
-    // 1️⃣ Obtener todos los clientes
-    const customers = await customerController.getAllCustom();
-    const phones = customers.map(c => c.phone);
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const skip = Math.max((page - 1) * limit, 0);
 
-    // 2️⃣ Obtener todos los chats asociados a los clientes
-    const chats = await Chat.find({ phone: { $in: phones } });
+    // 1️⃣ Obtener TODOS los clientes (porque necesitas orden global)
+    const allCustomers = await customerController.getAllCustom(); // ya usa .lean() por dentro idealmente
+    const allPhones = allCustomers.map(c => c.phone);
 
-    // 3️⃣ Cruzar los clientes con sus conversaciones
-    let customersWithConversations = customers.map(customer => {
-      const chat = chats.find(c => c.phone === customer.phone);
-      return { ...customer.toObject(), messages: chat ? chat.messages : [] };
+    // 2️⃣ Obtener todos los chats que tengan al menos un mensaje inbound
+    const chats = await Chat.find({
+      phone: { $in: allPhones },
+      "messages.direction": "inbound"
+    }).lean();
+
+    const chatsMap = new Map();
+    chats.forEach(chat => {
+      chatsMap.set(chat.phone, chat.messages || []);
     });
 
-    // 4️⃣ Filtrar clientes que tienen al menos un mensaje inbound (enviado por el cliente)
-    customersWithConversations = customersWithConversations.filter(customer => {
-      return customer.messages.some(message => message.direction === "inbound");
+    // 3️⃣ Unir info de chats con cada cliente
+    const enriched = allCustomers.map(customer => {
+      const messages = chatsMap.get(customer.phone) || [];
+      return { ...customer.toObject(), messages };
     });
 
-    // 5️⃣ Ordenar según prioridad y fecha del último mensaje del cliente
-    customersWithConversations.sort((a, b) => {
-      const priorityMap = {
-        "Prospecto_Interesado": 3,  // 🔝 Máxima prioridad
-        "Urgente_Queja": 3,         // 🔝 Máxima prioridad
-        "No contesta_Sin interacción": 0, // 🔽 Menor prioridad, al final
-      };
+    // 4️⃣ Filtrar solo los que tengan mensajes inbound
+    const withInbound = enriched.filter(c =>
+      c.messages.some(m => m.direction === "inbound")
+    );
 
-      const priorityA = priorityMap[`${a.classification}_${a.status}`] || 1;
-      const priorityB = priorityMap[`${b.classification}_${b.status}`] || 1;
+    // 5️⃣ Ordenar por prioridad y fecha del último mensaje inbound
+    const priorityMap = {
+      "Prospecto_Interesado": 3,
+      "Urgente_Queja": 3,
+      "No contesta_Sin interacción": 0,
+    };
 
-      if (priorityA !== priorityB) {
-        return priorityB - priorityA; // Ordenar primero por prioridad
-      }
+    withInbound.sort((a, b) => {
+      const pA = priorityMap[`${a.classification}_${a.status}`] || 1;
+      const pB = priorityMap[`${b.classification}_${b.status}`] || 1;
+      if (pA !== pB) return pB - pA;
 
-      // Si tienen la misma prioridad, ordenar por la fecha del último mensaje inbound (más reciente primero)
-      const lastInboundMessageA = a.messages
-        .filter(message => message.direction === "inbound")
-        .reduce((latest, message) => new Date(message.dateCreated) > new Date(latest.dateCreated) ? message : latest, { dateCreated: 0 });
+      const lastA = [...a.messages].filter(m => m.direction === "inbound").sort((x, y) =>
+        new Date(y.dateCreated) - new Date(x.dateCreated)
+      )[0];
 
-      const lastInboundMessageB = b.messages
-        .filter(message => message.direction === "inbound")
-        .reduce((latest, message) => new Date(message.dateCreated) > new Date(latest.dateCreated) ? message : latest, { dateCreated: 0 });
+      const lastB = [...b.messages].filter(m => m.direction === "inbound").sort((x, y) =>
+        new Date(y.dateCreated) - new Date(x.dateCreated)
+      )[0];
 
-      return new Date(lastInboundMessageB.dateCreated) - new Date(lastInboundMessageA.dateCreated); // Orden descendente
+      return new Date(lastB?.dateCreated || 0) - new Date(lastA?.dateCreated || 0);
     });
 
-    console.log(`✅ Se encontraron ${customersWithConversations.length} clientes con mensajes inbound.`);
+    // 6️⃣ Paginar después de ordenar
+    const total = withInbound.length;
+    const paginated = withInbound.slice(skip, skip + limit);
 
-    res.status(200).json({
-      message: "Clientes ordenados por prioridad y último mensaje del cliente",
-      total: customersWithConversations.length,
-      customers: customersWithConversations
+    console.timeEnd("⏱️ Tiempo de ejecución");
+
+    return res.status(200).json({
+      message: "Clientes ordenados y paginados correctamente",
+      total,
+      page,
+      customers: paginated
     });
 
   } catch (error) {
-    console.error("❌ Error al obtener la lista completa de clientes:", error);
-    res.status(500).json({ message: "Error al obtener la lista de clientes." });
+    console.error("❌ Error en /list:", error);
+    return res.status(500).json({ message: "Error al obtener la lista de clientes." });
   }
 });
-
 
 //ayudame a sacar el total de mensajes enviados
 router.get("/total-messages", async (req, res) => {
@@ -203,6 +217,18 @@ router.put("/updatecustomer", async (req, res) => {
     if (!customerData) {
       return res.status(MESSAGE_RESPONSE_CODE.BAD_REQUEST).json({ message: "Customer not found" });
     }
+    const io = req.app.get("io");
+    emitCustomerUpdate(io, {
+      phone,
+      name,
+      comments,
+      classification,
+      status,
+      visitDetails,
+      enrollmentDetails,
+      ia,
+      user,
+    });
     return res.status(MESSAGE_RESPONSE_CODE.OK).json({ message: "Customer updated", customerData });
   } catch (error) {
     res.status(MESSAGE_RESPONSE_CODE.BAD_REQUEST).json({ message: error.message });
@@ -654,6 +680,22 @@ router.delete("/delete/:id", async (req, res) => {
     return res.status(MESSAGE_RESPONSE_CODE.OK).json({ message: "Customer deleted", customer });
   } catch (error) {
     console.log(error);
+  }
+});
+
+router.get("/:phone", async (req, res) => {
+  try {
+    const { phone } = req.params;
+
+    const chat = await Chat.findOne({ phone });
+    if (!chat) {
+      return res.status(404).json({ messages: [] });
+    }
+
+    res.status(200).json({ messages: chat.messages });
+  } catch (err) {
+    console.error("❌ Error al obtener chat:", err);
+    res.status(500).json({ message: "Error al obtener mensajes" });
   }
 });
 

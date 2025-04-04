@@ -10,6 +10,7 @@ const Chat = require("../../../models/quicklearning/chats");
 const { prospects, students2 } = require("../../../db/dataStudents");
 const keywordClassification = require("../../../db/keywords");
 const schoolAdmissionsAgent = require("../../../services/realstate/bot_prueba");
+const { emitNewMessage } = require("../../../utils/socket-events");
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
@@ -239,6 +240,7 @@ let messageCounts = {};
 router.post("/message", async (req, res) => {
   try {
     const { MessageType, MediaContentType0, MediaUrl0, WaId, ProfileName, Body, From } = req.body;
+    const io = req.app.get("io");
 
     console.log("req.body --->", req.body);
 
@@ -283,6 +285,7 @@ router.post("/message", async (req, res) => {
       });
 
       await chat.save();
+      emitNewMessage(io, { phone: WaId, direction: "inbound", body: Body });
 
       // Enviar respuesta al usuario
       await client.messages.create({
@@ -297,6 +300,7 @@ router.post("/message", async (req, res) => {
       });
 
       await chat.save();
+      emitNewMessage(io, { phone: WaId, direction: "outbound-api", body: "¡Hola! Soy NatalIA de Quick Learning. Antes de darte toda la info, dime, ¿cómo te llamas?" });
 
       return res.status(200).json({ message: "El usuario no existe en la base de datos" });
     }
@@ -312,6 +316,9 @@ router.post("/message", async (req, res) => {
     });
 
     await chat.save();
+    emitNewMessage(io, { phone: WaId, direction: "inbound", body: Body });
+
+
 
     //validación que si el usuario tiene ia en false no haga nada.
     if (!validateUser.ia) {
@@ -408,6 +415,7 @@ router.post("/message", async (req, res) => {
         });
 
         await chat.save();
+        emitNewMessage(io, { phone: WaId, direction: "outbound-api", body: aiResponse });
 
         // Limpiar el registro de mensajes del usuario
         delete messageCounts[userNumber];
