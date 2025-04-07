@@ -23,33 +23,45 @@ router.get("/list", async (req, res) => {
     const limit = parseInt(req.query.limit) || 50;
     const skip = Math.max((page - 1) * limit, 0);
 
-    // 1️⃣ Obtener TODOS los clientes (porque necesitas orden global)
-    const allCustomers = await customerController.getAllCustom(); // ya usa .lean() por dentro idealmente
+    const startDate = req.query.startDate ? new Date(req.query.startDate) : null;
+    const endDate = req.query.endDate ? new Date(req.query.endDate) : null;
+
+    // 1️⃣ Obtener todos los clientes
+    const allCustomers = await customerController.getAllCustom(); // usa .lean()
     const allPhones = allCustomers.map(c => c.phone);
 
-    // 2️⃣ Obtener todos los chats que tengan al menos un mensaje inbound
+    // 2️⃣ Obtener los chats con mensajes inbound
     const chats = await Chat.find({
       phone: { $in: allPhones },
-      "messages.direction": "inbound"
-    }).lean();
+    });
 
     const chatsMap = new Map();
     chats.forEach(chat => {
       chatsMap.set(chat.phone, chat.messages || []);
     });
 
-    // 3️⃣ Unir info de chats con cada cliente
+    // 3️⃣ Unir clientes con mensajes
     const enriched = allCustomers.map(customer => {
       const messages = chatsMap.get(customer.phone) || [];
-      return { ...customer.toObject(), messages };
+
+      // Si hay fechas, filtrar mensajes por rango
+      const filteredMessages = (startDate && endDate)
+        ? messages.filter(m =>
+            
+            new Date(m.dateCreated) >= startDate &&
+            new Date(m.dateCreated) <= endDate
+          )
+        : messages;
+
+      return { ...customer, messages: filteredMessages };
     });
 
-    // 4️⃣ Filtrar solo los que tengan mensajes inbound
+    // 4️⃣ Filtrar clientes que tengan al menos un mensaje inbound en ese rango
     const withInbound = enriched.filter(c =>
       c.messages.some(m => m.direction === "inbound")
     );
 
-    // 5️⃣ Ordenar por prioridad y fecha del último mensaje inbound
+    // 5️⃣ Ordenar por prioridad y último mensaje
     const priorityMap = {
       "Prospecto_Interesado": 3,
       "Urgente_Queja": 3,
@@ -61,25 +73,25 @@ router.get("/list", async (req, res) => {
       const pB = priorityMap[`${b.classification}_${b.status}`] || 1;
       if (pA !== pB) return pB - pA;
 
-      const lastA = [...a.messages].filter(m => m.direction === "inbound").sort((x, y) =>
-        new Date(y.dateCreated) - new Date(x.dateCreated)
-      )[0];
+      const lastA = [...a.messages]
+        .filter(m => m.direction === "inbound")
+        .sort((x, y) => new Date(y.dateCreated) - new Date(x.dateCreated))[0];
 
-      const lastB = [...b.messages].filter(m => m.direction === "inbound").sort((x, y) =>
-        new Date(y.dateCreated) - new Date(x.dateCreated)
-      )[0];
+      const lastB = [...b.messages]
+        .filter(m => m.direction === "inbound")
+        .sort((x, y) => new Date(y.dateCreated) - new Date(x.dateCreated))[0];
 
       return new Date(lastB?.dateCreated || 0) - new Date(lastA?.dateCreated || 0);
     });
 
-    // 6️⃣ Paginar después de ordenar
+    // 6️⃣ Paginado
     const total = withInbound.length;
     const paginated = withInbound.slice(skip, skip + limit);
 
     console.timeEnd("⏱️ Tiempo de ejecución");
 
     return res.status(200).json({
-      message: "Clientes ordenados y paginados correctamente",
+      message: "Clientes ordenados y filtrados correctamente",
       total,
       page,
       customers: paginated

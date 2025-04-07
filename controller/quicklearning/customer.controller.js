@@ -47,7 +47,7 @@ class customerQLController {
   }
 
   async getAllCustom() {
-    return await customer.find();
+    return await customer.find().lean();
   }
 
   async getByIDCustom(id) {
