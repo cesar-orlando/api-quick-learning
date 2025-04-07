@@ -641,7 +641,7 @@ router.get("/customers/conversations/:userId", async (req, res) => {
     let customersWithConversations = customersByUser
       .map(customer => {
         const chat = chats.find(c => c.phone === customer.phone);
-        return chat ? { ...customer.toObject(), messages: chat.messages } : null;
+        return chat ? { ...customer, messages: chat.messages } : null;
       })
       .filter(Boolean) // Filtrar nulos
       .filter(customer => !(customer.classification === "No contesta" && customer.status === "Sin interacción")); // Excluir "No contesta - Sin interacción"
