@@ -60,7 +60,7 @@ app.use("/api/v2/followupboss", require("./router/v2/followupboss/people"));
 app.use("/api/v2/countries", require("./router/companies/country"));
 
 /* MongoDB + Server Start */
-const PORT = process.env.PORT || 3125;
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`🚀 API corriendo en puerto ${PORT}`);
 
