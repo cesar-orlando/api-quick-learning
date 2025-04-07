@@ -1,6 +1,14 @@
 const { default: axios } = require("axios");
 const { response } = require("express");
 
+const systemStart = `
+⚠️ IMPORTANTE: Solo responde con un mensaje corto. NUNCA superes los 1500 caracteres. 
+Esto es para enviarlo por WhatsApp. 
+El mensaje debe ser claro, directo y conciso. 
+Evita listas largas o explicaciones detalladas. 
+Si necesitas explicar más, ofrece continuar la conversación con un segundo mensaje.
+`;
+
 const face_to_face_courses = `Cursos Presenciales.
 
 Intensivo.
@@ -324,6 +332,7 @@ const dataChatGpt = async () => {
   });
 
   const data = `
+  ${systemStart}
   ${quickLearningCourses}
 Si te preguntan información sobre las sedes, puedes responder con la siguiente información:
   Antes de mandarles las sedes pregunta la ubicación del usuario.
@@ -357,7 +366,6 @@ Para realizar tu pago a través de la plataforma Quick Learning Online
 •	Con PayPal – La plataforma te enviará a la pantalla de PayPal.
 
 Nota: Para meses sin intereses, consulta los bancos participantes. PayPal no participa en promoción de meses sin intereses.
-
   `;
 
   return data;
