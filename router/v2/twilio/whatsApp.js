@@ -249,10 +249,7 @@ router.post("/message", async (req, res) => {
     // Verificar si el usuario ya existe en la base de datos
     const validateUser = await customerController.findOneCustom({ phone: WaId });
     if (!validateUser) {
-      const getUsers = await userController.findAll();
-      const agentIndex = Math.floor(Math.random() * getUsers.length);
-      const agent = getUsers[agentIndex];
-
+      // Crear un nuevo usuario si no existe
       const data = {
         name: ProfileName,
         phone: WaId,
@@ -305,6 +302,45 @@ router.post("/message", async (req, res) => {
       return res.status(200).json({ message: "El usuario no existe en la base de datos" });
     }
 
+    // Validar si el mensaje es de tipo audio
+    if (MessageType === "audio" && MediaUrl0) {
+      console.log("🎙 Mensaje de audio recibido. Procesando...");
+
+      // Llamar a generatePersonalityResponse con el audio
+      const aiResponse = await generatePersonalityResponse(
+        null, // No hay texto en el mensaje
+        userNumber,
+        WaId,
+        MediaContentType0, // Tipo de media (audio)
+        MediaUrl0 // URL del audio
+      );
+
+      // Enviar respuesta al usuario
+      await client.messages.create({
+        body: aiResponse,
+        from: "whatsapp:+5213341610749",
+        to: userNumber,
+      });
+
+      console.log("✅ Respuesta enviada exitosamente:", aiResponse);
+
+      let chat = await Chat.findOne({ phone: WaId });
+      if (!chat) {
+        chat = new Chat({ phone: WaId });
+      }
+
+      chat.messages.push({
+        direction: "outbound-api",
+        body: aiResponse,
+      });
+
+      await chat.save();
+      emitNewMessage(io, { phone: WaId, direction: "outbound-api", body: aiResponse });
+
+      return res.status(200).json({ message: "Mensaje de audio procesado exitosamente." });
+    }
+
+    // Si el mensaje no es de audio, procesar como texto
     let chat = await Chat.findOne({ phone: WaId });
     if (!chat) {
       chat = new Chat({ phone: WaId });
@@ -318,112 +354,37 @@ router.post("/message", async (req, res) => {
     await chat.save();
     emitNewMessage(io, { phone: WaId, direction: "inbound", body: Body });
 
-
-
-    //validación que si el usuario tiene ia en false no haga nada.
+    // Validación que si el usuario tiene ia en false no haga nada.
     if (!validateUser.ia) {
       console.log("El usuario no tiene activado el IA");
       return res.status(200).json({ message: "El usuario no tiene activado el IA" });
     }
 
-    // **Identificar palabras clave para actualizar clasificación y estado**
-    let newClassification = validateUser.classification;
-    let newStatus = validateUser.status;
+    // Procesar el mensaje con OpenAI
+    const aiResponse = await generatePersonalityResponse(
+      Body, // Texto del mensaje
+      userNumber,
+      WaId
+    );
 
-    for (const keyword in keywordClassification) {
-      if (Body.toLowerCase().includes(keyword)) {
-        newClassification = keywordClassification[keyword].classification;
-        newStatus = keywordClassification[keyword].status;
-        break; // Detenerse en la primera coincidencia
-      }
-    }
+    // Enviar respuesta al usuario
+    await client.messages.create({
+      body: aiResponse,
+      from: "whatsapp:+5213341610749",
+      to: userNumber,
+    });
 
-    // Si hay cambios en clasificación o estado, actualizarlos en la BD
-    if (newClassification !== validateUser.classification || newStatus !== validateUser.status) {
-      await customerController.updateOneCustom({ phone: WaId }, { classification: newClassification, status: newStatus });
-      console.log(`Cliente actualizado: ${WaId} -> ${newClassification}, ${newStatus}`);
-    }
+    console.log("✅ Respuesta enviada exitosamente:", aiResponse);
 
-    // Manejo de mensajes en `messageCounts`
-    if (!messageCounts[userNumber]) {
-      messageCounts[userNumber] = { messages: [] };
-    }
+    chat.messages.push({
+      direction: "outbound-api",
+      body: aiResponse,
+    });
 
-    // Agregar mensajes multimedia o de texto al historial
-    if (MessageType !== "text" && MediaUrl0) {
-      messageCounts[userNumber].messages.push({
-        type: "media",
-        mediaType: MediaContentType0,
-        mediaUrl: MediaUrl0,
-        text: Body || "",
-      });
-    } else {
-      messageCounts[userNumber].messages.push({
-        type: "text",
-        content: Body,
-      });
-    }
+    await chat.save();
+    emitNewMessage(io, { phone: WaId, direction: "outbound-api", body: aiResponse });
 
-    // Cancelar un timeout previo, si existe
-    if (messageCounts[userNumber].timeout) {
-      clearTimeout(messageCounts[userNumber].timeout);
-    }
-
-    // Configurar timeout para enviar respuesta después de 30 segundos de inactividad
-    messageCounts[userNumber].timeout = setTimeout(async () => {
-      if (messageCounts[userNumber]) {
-        const userMessages = messageCounts[userNumber].messages;
-
-        // Combinar mensajes para enviarlos a OpenAI
-        const combinedMessage = userMessages
-          .map((msg) => {
-            if (msg.type === "text") {
-              return msg.content;
-            } else if (msg.type === "media") {
-              return `Se recibió un archivo (${msg.mediaType}): ${msg.text || "Sin texto adicional"}`;
-            }
-          })
-          .join("\n");
-
-        // Generar respuesta usando OpenAI
-        const aiResponse = await generatePersonalityResponse(
-          combinedMessage, // Mensaje combinado
-          userNumber, // Número del usuario
-          WaId,
-          MediaContentType0 || null, // Tipo de media, si existe
-          MediaUrl0 || null // URL del media, si existe
-        );
-
-        // Enviar respuesta al usuario
-        await client.messages.create({
-          body: aiResponse,
-          from: "whatsapp:+5213341610749", //producción
-          //from: "whatsapp:+5213341610750", // DEV
-          to: userNumber,
-        });
-
-        console.log("Respuesta enviada exitosamente:", aiResponse);
-
-        let chat = await Chat.findOne({ phone: WaId });
-        if (!chat) {
-          chat = new Chat({ phone: WaId });
-        }
-
-        chat.messages.push({
-          direction: "outbound-api",
-          body: aiResponse,
-        });
-
-        await chat.save();
-        emitNewMessage(io, { phone: WaId, direction: "outbound-api", body: aiResponse });
-
-        // Limpiar el registro de mensajes del usuario
-        delete messageCounts[userNumber];
-      }
-    }, 100 /* 30000 */); // 30 segundos de inactividad
-
-    // Responder al webhook de Twilio
-    res.status(200).json({ message: "Mensaje recibido y consolidando respuestas." });
+    res.status(200).json({ message: "Mensaje procesado exitosamente." });
   } catch (error) {
     console.error("Error:", error.message);
     res.status(400).json({ message: error.message });
