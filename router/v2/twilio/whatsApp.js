@@ -302,6 +302,54 @@ router.post("/message", async (req, res) => {
       return res.status(200).json({ message: "El usuario no existe en la base de datos" });
     }
 
+    // Si el mensaje es una ubicación
+    if (MessageType === "location" && req.body.Latitude && req.body.Longitude) {
+      const lat = parseFloat(req.body.Latitude);
+      const lng = parseFloat(req.body.Longitude);
+
+      const chat = await Chat.findOne({ phone: WaId }) || new Chat({ phone: WaId });
+
+      const systemMsg = `📍 El usuario compartió su ubicación: https://www.google.com/maps?q=${lat},${lng}`;
+
+      chat.messages.push({
+        direction: "inbound",
+        body: systemMsg,
+      });
+
+      await chat.save();
+      emitNewMessage(io, { phone: WaId, direction: "inbound", body: systemMsg });
+
+      // Validar si IA está activa
+      if (!validateUser.ia) {
+        return res.status(200).json({ message: "El usuario no tiene activado el IA" });
+      }
+
+      const aiResponse = await generatePersonalityResponse(
+        systemMsg,
+        userNumber,
+        WaId
+      );
+
+      await client.messages.create({
+        body: aiResponse,
+        from: "whatsapp:+5213341610749",
+        to: userNumber,
+      });
+
+      console.log("✅ Respuesta enviada exitosamente:", aiResponse);
+
+      chat.messages.push({
+        direction: "outbound-api",
+        body: aiResponse,
+      });
+
+      await chat.save();
+      emitNewMessage(io, { phone: WaId, direction: "outbound-api", body: aiResponse });
+
+      return res.status(200).json({ message: "Ubicación procesada exitosamente." });
+    }
+
+
     // Validar si el mensaje es de tipo audio
     if (MessageType === "audio" && MediaUrl0) {
       console.log("🎙 Mensaje de audio recibido. Procesando...");

@@ -61,14 +61,58 @@ const tools = [
   {
     type: "function",
     function: {
-      name: "get_branches",
-      description: "Cuando el usuario pregunta por las sucursales, sedes o ubicaciones de Quick Learning, usa esta función para proporcionar esa información.",
+      name: "suggest_branch_or_virtual_course",
+      description: "Busca si hay una sucursal de Quick Learning en la ciudad del usuario. Si existe, continúa la conversación ofreciendo opciones. Si no existe, recomienda tomar el curso virtual u online.",
       parameters: {
         type: "object",
-        properties: {},
-      },
+        properties: {
+          city: {
+            type: "string",
+            description: "Nombre de la ciudad mencionada por el usuario, como GDL, Guadalajara, CDMX, etc."
+          }
+        },
+        required: ["city"]
+      }
     }
-  }
+  },
+  {
+    type: "function", // ESTA ES LA CLAVE QUE FALTA
+    function: {
+      name: "suggest_nearby_branch",
+      description: "Sugiere la sucursal más cercana usando dirección o coordenadas.",
+      parameters: {
+        type: "object",
+        properties: {
+          address: {
+            type: "string",
+            description: "Dirección textual proporcionada por el usuario",
+          },
+          lat: {
+            type: "number",
+            description: "Latitud si el usuario mandó su ubicación",
+          },
+          lng: {
+            type: "number",
+            description: "Longitud si el usuario mandó su ubicación",
+          }
+        }
+      }
+    }
+  },
+  
+
+
+  /*   {
+      type: "function",
+      function: {
+        name: "get_branches",
+        description: "Cuando el usuario pregunta por las sucursales, sedes o ubicaciones de Quick Learning, usa esta función para proporcionar esa información.",
+        parameters: {
+          type: "object",
+          properties: {},
+        },
+      }
+    } */
 ];
 
 // Funciones para cada tool
@@ -201,6 +245,136 @@ const submit_student_complaint = async (issueDetails, WaId) => {
   });
   return `⚠️ *Lamentamos escuchar esto.* Queremos ayudarte lo más rápido posible. Para dar seguimiento a tu reporte, por favor envíanos la siguiente información:\n\n📝 *Nombre completo*\n🏫 *Sucursal donde estás inscrito*\n📚 *Curso que estás tomando*\n⏰ *Horario en el que asistes*\n📢 *Detalles del problema:* "${issueDetails}"\n🎫 *Número de alumno*\n\nCon esta información, nuestro equipo podrá revisar tu caso y darte una solución lo antes posible. ¡Estamos para ayudarte! 😊`;
 };
+
+const suggest_branch_or_virtual_course = async (city, WaId) => {
+  try {
+    const response = await axios.get("http://localhost:3000/api/v1/sedes");
+    const branches = response.data.sedes;
+
+    const normalizedCity = city.trim().toLowerCase();
+
+    const found = branches.find((branch) =>
+      branch.name.toLowerCase().includes(normalizedCity) ||
+      branch.address.toLowerCase().includes(normalizedCity)
+    );
+
+    if (found) {
+      return `📍 ¡Qué bonito lugar! ¿cómo te gustaría aprender inglés? Contamos con tres modalidades: 
+
+1. Presencial – Asistes físicamente a la escuela.
+2. Virtual (a distancia) – Clases en vivo por videollamada.
+3. Online – Plataforma autogestionada a tu ritmo, sin horarios.
+
+¿Cuál prefieres?`;
+    } else {
+      return `🤖 ¡Qué padre, ${city} es un lugar hermoso! Actualmente no tenemos una sucursal presencial ahí, pero no te preocupes...
+
+      🎯 Tenemos dos opciones increíbles para ti:
+      1. **Virtual** – Clases en vivo por videollamada con maestros certificados.
+      2. **Online** – Aprende a tu propio ritmo con nuestra plataforma 24/7.
+      
+      📲 Ambas opciones son súper efectivas y puedes tomarlas desde la comodidad de tu casa.
+      
+      ¿Te gustaría que te cuente más detalles para que elijas la que mejor se adapta a ti?`;
+
+    }
+  } catch (error) {
+    console.error("Error al obtener sedes:", error.message);
+    return "No pude verificar las sedes en este momento, pero si me dices tu ciudad, puedo ayudarte manualmente.";
+  }
+};
+
+
+const suggest_nearby_branch = async (params, WaId) => {
+  try {
+    const { data } = await axios.get("http://localhost:3000/api/v1/sedes");
+    const branches = data.sedes;
+
+    let userCoords;
+
+    // 📍 Si vienen coordenadas, las usamos directamente
+    if (params.lat && params.lng) {
+      userCoords = {
+        latitude: parseFloat(params.lat),
+        longitude: parseFloat(params.lng),
+      };
+    } else if (params.address) {
+      // 🗺️ Si viene una dirección, la geocodificamos
+      const geo = await axios.get("http://api.positionstack.com/v1/forward", {
+        params: {
+          access_key: process.env.POSITIONSTACK_API_KEY,
+          query: params.address,
+          limit: 1,
+          country: "MX",
+        },
+      });
+
+      if (!geo.data.data.length) {
+        return "No pude encontrar tu ubicación exacta. ¿Puedes darme una dirección más específica?";
+      }
+
+      userCoords = {
+        latitude: geo.data.data[0].latitude,
+        longitude: geo.data.data[0].longitude,
+      };
+    } else {
+      return "Necesito una dirección o ubicación para poder ayudarte.";
+    }
+
+    // 🌍 Geolocalizar sucursales
+    const branchesWithCoords = await Promise.all(
+      branches.map(async (branch) => {
+        try {
+          const geoBranch = await axios.get("https://maps.googleapis.com/maps/api/geocode/json", {
+            params: {
+              address: branch.address,
+              key: process.env.GOOGLE_MAPS_API_KEY,
+            },
+          });
+
+          if (!geoBranch.data.results.length) return null;
+
+          return {
+            ...branch,
+            lat: geoBranch.data.results[0].geometry.location.lat,
+            lng: geoBranch.data.results[0].geometry.location.lng,
+          };
+        } catch (err) {
+          return null;
+        }
+      })
+    );
+
+    const validBranches = branchesWithCoords.filter(
+      (b) => b && b.lat && b.lng && !isNaN(b.lat) && !isNaN(b.lng)
+    );
+
+    const sedesConDistancia = validBranches.map((sede) => ({
+      ...sede,
+      distance: geolib.getDistance(userCoords, {
+        latitude: sede.lat,
+        longitude: sede.lng,
+      }),
+    }));
+
+    const topSedes = sedesConDistancia.sort((a, b) => a.distance - b.distance).slice(0, 3);
+
+    if (topSedes.length > 0) {
+      const lista = topSedes
+        .map((s, i) => `*${i + 1}.* ${s.name}\n${s.address}`)
+        .join("\n\n");
+
+      return `Estas son las sucursales más cercanas a ti:\n\n${lista}\n\n¿Te gustaría que te dé los horarios o modalidades que manejan en esta sucursal?`;
+    } else {
+      return `😕 En esa ubicación no encontré una sucursal presencial, pero *no te preocupes*. Tenemos cursos *virtuales* y *online* igual de efectivos que puedes tomar desde cualquier parte.\n\n🎯 Con clases en vivo, sesiones con maestros certificados y acceso 24/7, ¡vas a avanzar rapidísimo! ¿Quieres que te dé los detalles para inscribirte?`;
+    }
+  } catch (error) {
+    console.error("Error al obtener sedes:", error.message);
+    return "No pude verificar las sedes en este momento. ¿Puedes decirme tu ciudad o dirección?";
+  }
+};
+
+
 
 const get_branches = async (WaId) => {
   const getUsers = await userController.findAll();
@@ -359,8 +533,13 @@ module.exports = async function generatePersonalityResponse(message, number, WaI
           return register_user_name(functionArgs.full_name, WaId);
         case "submit_student_complaint":
           return submit_student_complaint(functionArgs.issue_details, WaId);
-        case "get_branches":
-          return get_branches(WaId);
+        case "suggest_branch_or_virtual_course":
+          return suggest_branch_or_virtual_course(functionArgs.city, WaId);
+        case "suggest_nearby_branch":
+          return suggest_nearby_branch(functionArgs.address, WaId);
+
+        /*         case "get_branches":
+                  return get_branches(WaId); */
         default:
           return "Un asesor se pondrá en contacto contigo en breve.";
       }
