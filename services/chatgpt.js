@@ -4,9 +4,9 @@ const fs = require("fs");
 const FormData = require("form-data");
 const geolib = require("geolib");
 const { default: axios } = require("axios");
-const { quickLearningCourses, student_custom_functions, dataChatGpt } = require("../db/data");
-const { type } = require("os");
+const { dataChatGpt } = require("../db/data");
 const userController = require("../controller/quicklearning/user.controller");
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
@@ -17,7 +17,8 @@ const tools = [
     type: "function",
     function: {
       name: "get_start_dates",
-      description: "Devuelve las fechas de inicio de los cursos de Quick Learning.",
+      description:
+        "Devuelve las fechas de inicio de los cursos de Quick Learning.",
       parameters: {
         type: "object",
         properties: {},
@@ -28,13 +29,15 @@ const tools = [
     type: "function",
     function: {
       name: "register_user_name",
-      description: "Cuando un usuario proporciona su nombre completo, usa esta función para registrarlo y continuar con el proceso de inscripción.",
+      description:
+        "Cuando un usuario proporciona su nombre completo, usa esta función para registrarlo y continuar con el proceso de inscripción.",
       parameters: {
         type: "object",
         properties: {
           full_name: {
             type: "string",
-            description: "El nombre completo del usuario tal como lo proporcionó.",
+            description:
+              "El nombre completo del usuario tal como lo proporcionó.",
           },
         },
         required: ["full_name"],
@@ -45,13 +48,15 @@ const tools = [
     type: "function",
     function: {
       name: "submit_student_complaint",
-      description: "Si el usuario menciona una queja, problema, inconveniente con un maestro o con la escuela, usa esta función para ayudarle a reportarlo adecuadamente.",
+      description:
+        "Si el usuario menciona una queja, problema, inconveniente con un maestro o con la escuela, usa esta función para ayudarle a reportarlo adecuadamente.",
       parameters: {
         type: "object",
         properties: {
           issue_details: {
             type: "string",
-            description: "Descripción de la queja del estudiante sobre un maestro o situación en la escuela.",
+            description:
+              "Descripción de la queja del estudiante sobre un maestro o situación en la escuela.",
           },
         },
         required: ["issue_details"],
@@ -62,24 +67,27 @@ const tools = [
     type: "function",
     function: {
       name: "suggest_branch_or_virtual_course",
-      description: "Busca si hay una sucursal de Quick Learning en la ciudad del usuario. Si existe, continúa la conversación ofreciendo opciones. Si no existe, recomienda tomar el curso virtual u online.",
+      description:
+        "Busca si hay una sucursal o escuela o sede de Quick Learning en la ciudad del usuario. Si existe, continúa la conversación ofreciendo opciones. Si no existe, recomienda tomar el curso virtual u online.",
       parameters: {
         type: "object",
         properties: {
           city: {
             type: "string",
-            description: "Nombre de la ciudad mencionada por el usuario, como GDL, Guadalajara, CDMX, etc."
-          }
+            description:
+              "Nombre de la ciudad mencionada por el usuario, como GDL, Guadalajara, CDMX, etc.",
+          },
         },
-        required: ["city"]
-      }
-    }
+        required: ["city"],
+      },
+    },
   },
   {
     type: "function", // ESTA ES LA CLAVE QUE FALTA
     function: {
       name: "suggest_nearby_branch",
-      description: "Sugiere la sucursal más cercana usando dirección o coordenadas.",
+      description:
+        "Sugiere la sucursal más cercana usando dirección o coordenadas.",
       parameters: {
         type: "object",
         properties: {
@@ -94,29 +102,18 @@ const tools = [
           lng: {
             type: "number",
             description: "Longitud si el usuario mandó su ubicación",
-          }
-        }
-      }
-    }
-  },
-  
-
-
-  /*   {
-      type: "function",
-      function: {
-        name: "get_branches",
-        description: "Cuando el usuario pregunta por las sucursales, sedes o ubicaciones de Quick Learning, usa esta función para proporcionar esa información.",
-        parameters: {
-          type: "object",
-          properties: {},
+          },
         },
-      }
-    } */
+      },
+    },
+  },
 ];
 
 // Funciones para cada tool
-const get_start_dates = async (requestedDate = null, isGenericRequest = false) => {
+const get_start_dates = async (
+  requestedDate = null,
+  isGenericRequest = false
+) => {
   try {
     // Configuración de la petición al API
     let config = {
@@ -189,7 +186,8 @@ const get_start_dates = async (requestedDate = null, isGenericRequest = false) =
       return "No hay semanas de inicio disponibles después de la fecha indicada.";
     }
 
-    let message = "Estas son las próximas semanas de inicio de curso disponibles:\n";
+    let message =
+      "Estas son las próximas semanas de inicio de curso disponibles:\n";
     filteredWeeks.forEach((week) => {
       const start = week[0].toLocaleDateString("es-ES");
       const end = week[week.length - 1].toLocaleDateString("es-ES");
@@ -198,30 +196,38 @@ const get_start_dates = async (requestedDate = null, isGenericRequest = false) =
 
     return `${message}\n📢 ¡Aprovecha tu lugar antes de que se agoten los cupos! ¿Te ayudo a asegurar tu inscripción ahora mismo?`;
   } catch (error) {
-    console.error("Error al obtener las semanas de inicio de cursos:", error.message);
+    console.error(
+      "Error al obtener las semanas de inicio de cursos:",
+      error.message
+    );
     return "No pude obtener la información de inicio de cursos en este momento. Inténtalo más tarde.";
   }
 };
 
 const register_user_name = async (fullName, WaId) => {
-
   const getUsers = await userController.findAll();
   const agentIndex = Math.floor(Math.random() * getUsers.length);
   const agent = getUsers[agentIndex];
 
-  await axios.put(`http://localhost:3000/api/v1/quicklearning/updatecustomer`, {
-    phone: WaId,
-    name: fullName,
-    classification: "Prospecto",
-    status: "Interesado",
-    user: agent,
-    ia: false
-  }).then((response) => {
-    console.log("response", response);
-  }).catch((error) => {
-    console.error("Error al obtener el historial de mensajes:", error.message);
-    return { data: { findMessages: [] } };
-  });
+  await axios
+    .put(`http://localhost:3000/api/v1/quicklearning/updatecustomer`, {
+      phone: WaId,
+      name: fullName,
+      classification: "Prospecto",
+      status: "Interesado",
+      user: agent,
+      ia: false,
+    })
+    .then((response) => {
+      console.log("response", response);
+    })
+    .catch((error) => {
+      console.error(
+        "Error al obtener el historial de mensajes:",
+        error.message
+      );
+      return { data: { findMessages: [] } };
+    });
 
   return `¡Gracias, ${fullName}! Ahora que tengo tu nombre, puedo continuar con el proceso de inscripción. ¿Me puedes proporcionar tu número de contacto?`;
 };
@@ -231,18 +237,24 @@ const submit_student_complaint = async (issueDetails, WaId) => {
   const agentIndex = Math.floor(Math.random() * getUsers.length);
   const agent = getUsers[agentIndex];
 
-  await axios.put(`http://localhost:3000/api/v1/quicklearning/updatecustomer`, {
-    phone: WaId,
-    classification: "Urgente",
-    status: "Queja",
-    user: agent,
-    ia: false
-  }).then((response) => {
-    console.log("response", response);
-  }).catch((error) => {
-    console.error("Error al obtener el historial de mensajes:", error.message);
-    return { data: { findMessages: [] } };
-  });
+  await axios
+    .put(`http://localhost:3000/api/v1/quicklearning/updatecustomer`, {
+      phone: WaId,
+      classification: "Urgente",
+      status: "Queja",
+      user: agent,
+      ia: false,
+    })
+    .then((response) => {
+      console.log("response", response);
+    })
+    .catch((error) => {
+      console.error(
+        "Error al obtener el historial de mensajes:",
+        error.message
+      );
+      return { data: { findMessages: [] } };
+    });
   return `⚠️ *Lamentamos escuchar esto.* Queremos ayudarte lo más rápido posible. Para dar seguimiento a tu reporte, por favor envíanos la siguiente información:\n\n📝 *Nombre completo*\n🏫 *Sucursal donde estás inscrito*\n📚 *Curso que estás tomando*\n⏰ *Horario en el que asistes*\n📢 *Detalles del problema:* "${issueDetails}"\n🎫 *Número de alumno*\n\nCon esta información, nuestro equipo podrá revisar tu caso y darte una solución lo antes posible. ¡Estamos para ayudarte! 😊`;
 };
 
@@ -253,9 +265,10 @@ const suggest_branch_or_virtual_course = async (city, WaId) => {
 
     const normalizedCity = city.trim().toLowerCase();
 
-    const found = branches.find((branch) =>
-      branch.name.toLowerCase().includes(normalizedCity) ||
-      branch.address.toLowerCase().includes(normalizedCity)
+    const found = branches.find(
+      (branch) =>
+        branch.name.toLowerCase().includes(normalizedCity) ||
+        branch.address.toLowerCase().includes(normalizedCity)
     );
 
     if (found) {
@@ -276,14 +289,12 @@ const suggest_branch_or_virtual_course = async (city, WaId) => {
       📲 Ambas opciones son súper efectivas y puedes tomarlas desde la comodidad de tu casa.
       
       ¿Te gustaría que te cuente más detalles para que elijas la que mejor se adapta a ti?`;
-
     }
   } catch (error) {
     console.error("Error al obtener sedes:", error.message);
     return "No pude verificar las sedes en este momento, pero si me dices tu ciudad, puedo ayudarte manualmente.";
   }
 };
-
 
 const suggest_nearby_branch = async (params, WaId) => {
   try {
@@ -325,12 +336,15 @@ const suggest_nearby_branch = async (params, WaId) => {
     const branchesWithCoords = await Promise.all(
       branches.map(async (branch) => {
         try {
-          const geoBranch = await axios.get("https://maps.googleapis.com/maps/api/geocode/json", {
-            params: {
-              address: branch.address,
-              key: process.env.GOOGLE_MAPS_API_KEY,
-            },
-          });
+          const geoBranch = await axios.get(
+            "https://maps.googleapis.com/maps/api/geocode/json",
+            {
+              params: {
+                address: branch.address,
+                key: process.env.GOOGLE_MAPS_API_KEY,
+              },
+            }
+          );
 
           if (!geoBranch.data.results.length) return null;
 
@@ -357,7 +371,9 @@ const suggest_nearby_branch = async (params, WaId) => {
       }),
     }));
 
-    const topSedes = sedesConDistancia.sort((a, b) => a.distance - b.distance).slice(0, 3);
+    const topSedes = sedesConDistancia
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 3);
 
     if (topSedes.length > 0) {
       const lista = topSedes
@@ -366,6 +382,30 @@ const suggest_nearby_branch = async (params, WaId) => {
 
       return `Estas son las sucursales más cercanas a ti:\n\n${lista}\n\n¿Te gustaría que te dé los horarios o modalidades que manejan en esta sucursal?`;
     } else {
+      //quitar IA para que un asesor pueda retomar la conversación.
+      const getUsers = await userController.findAll();
+      const agentIndex = Math.floor(Math.random() * getUsers.length);
+      const agent = getUsers[agentIndex];
+
+      await axios
+      .put(`http://localhost:3000/api/v1/quicklearning/updatecustomer`, {
+        phone: WaId,
+        classification: "Prospecto",
+        status: "Interesado",
+        user: agent,
+        ia: false,
+      })
+      .then((response) => {
+        console.log("response", response);
+      })
+      .catch((error) => {
+        console.error(
+          "Error al obtener el historial de mensajes:",
+          error.message
+        );
+        return { data: { findMessages: [] } };
+      });
+      return `Dame un segundo, ahorita te paso las sucursales que tenemos.`
       return `😕 En esa ubicación no encontré una sucursal presencial, pero *no te preocupes*. Tenemos cursos *virtuales* y *online* igual de efectivos que puedes tomar desde cualquier parte.\n\n🎯 Con clases en vivo, sesiones con maestros certificados y acceso 24/7, ¡vas a avanzar rapidísimo! ¿Quieres que te dé los detalles para inscribirte?`;
     }
   } catch (error) {
@@ -374,24 +414,28 @@ const suggest_nearby_branch = async (params, WaId) => {
   }
 };
 
-
-
 const get_branches = async (WaId) => {
   const getUsers = await userController.findAll();
   const agentIndex = Math.floor(Math.random() * getUsers.length);
   const agent = getUsers[agentIndex];
 
-  await axios.put(`http://localhost:3000/api/v1/quicklearning/updatecustomer`, {
-    phone: WaId,
-    classification: "Prospecto",
-    status: "Interesado",
-    user: agent,
-    ia: false
-  }).then((response) => {
-    console.log("response", response);
-  }).catch((error) => {
-    console.error("Error al obtener el historial de mensajes:", error.message);
-  });
+  await axios
+    .put(`http://localhost:3000/api/v1/quicklearning/updatecustomer`, {
+      phone: WaId,
+      classification: "Prospecto",
+      status: "Interesado",
+      user: agent,
+      ia: false,
+    })
+    .then((response) => {
+      console.log("response", response);
+    })
+    .catch((error) => {
+      console.error(
+        "Error al obtener el historial de mensajes:",
+        error.message
+      );
+    });
   return `Dime en qué ciudad te encuentras y te diré la sucursal más cercana.`;
 };
 
@@ -424,12 +468,16 @@ const transcribeAudio = async (audioUrl) => {
     console.log("Formulario creado, enviando a OpenAI...");
 
     // Paso 4: Enviar el archivo al modelo Whisper de OpenAI
-    const transcriptionResponse = await axios.post("https://api.openai.com/v1/audio/transcriptions", formData, {
-      headers: {
-        ...formData.getHeaders(),
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, // Clave de OpenAI
-      },
-    });
+    const transcriptionResponse = await axios.post(
+      "https://api.openai.com/v1/audio/transcriptions",
+      formData,
+      {
+        headers: {
+          ...formData.getHeaders(),
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, // Clave de OpenAI
+        },
+      }
+    );
 
     console.log("Respuesta de OpenAI:", transcriptionResponse.data);
 
@@ -439,7 +487,10 @@ const transcribeAudio = async (audioUrl) => {
 
     return transcriptionResponse.data;
   } catch (error) {
-    console.error("Error al transcribir el audio:", error.response?.data || error.message);
+    console.error(
+      "Error al transcribir el audio:",
+      error.response?.data || error.message
+    );
     return "No pude transcribir el audio.";
   }
 };
@@ -454,7 +505,13 @@ const analyzeImage = async (imageUrl) => {
   }
 };
 
-module.exports = async function generatePersonalityResponse(message, number, WaId, mediaType, mediaUrl) {
+module.exports = async function generatePersonalityResponse(
+  message,
+  number,
+  WaId,
+  mediaType,
+  mediaUrl
+) {
   try {
     let processedMessage = message;
 
@@ -469,7 +526,8 @@ module.exports = async function generatePersonalityResponse(message, number, WaI
         console.log("audioTranscription:", audioTranscription);
 
         // Verificar si la transcripción tiene texto válido
-        const transcriptionText = audioTranscription || "No se encontró texto en el archivo de audio.";
+        const transcriptionText =
+          audioTranscription || "No se encontró texto en el archivo de audio.";
         processedMessage = transcriptionText;
 
         console.log("processedMessage Después:", processedMessage);
@@ -485,11 +543,15 @@ module.exports = async function generatePersonalityResponse(message, number, WaI
     const initialContext = await dataChatGpt(); // Contexto de bienvenida o presentación, si aplica
 
     // 2. Obtener historial de mensajes del usuario
-    const response = await axios.get(`http://localhost:3000/api/v1/chat/messages/${WaId}`).catch((error) => {
-      console.error("Error al obtener el historial de mensajes:", error.message);
-      return { data: { findMessages: [] } };
-    });
-
+    const response = await axios
+      .get(`http://localhost:3000/api/v1/chat/messages/${WaId}`)
+      .catch((error) => {
+        console.error(
+          "Error al obtener el historial de mensajes:",
+          error.message
+        );
+        return { data: { findMessages: [] } };
+      });
 
     let mapMessage = response.data.messages.map((msg) => ({
       role: msg.direction === "outbound-api" ? "assistant" : "user",
@@ -519,7 +581,6 @@ module.exports = async function generatePersonalityResponse(message, number, WaI
 
     console.log("Respuesta de OpenAI:", JSON.stringify(completion, null, 2));
 
-
     const toolCall = completion.choices[0].message.tool_calls?.[0];
 
     if (toolCall) {
@@ -535,8 +596,9 @@ module.exports = async function generatePersonalityResponse(message, number, WaI
           return submit_student_complaint(functionArgs.issue_details, WaId);
         case "suggest_branch_or_virtual_course":
           return suggest_branch_or_virtual_course(functionArgs.city, WaId);
-        case "suggest_nearby_branch":
-          return suggest_nearby_branch(functionArgs.address, WaId);
+          case "suggest_nearby_branch":
+            return suggest_nearby_branch(functionArgs, WaId);
+          
 
         /*         case "get_branches":
                   return get_branches(WaId); */

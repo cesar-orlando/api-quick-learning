@@ -315,7 +315,6 @@ Si te pregunta por otras escuelas, no des información.
 ---
 `;
 
-
 const dataChatGpt = async () => {
   let configSedes = {
     method: "get",
@@ -354,10 +353,23 @@ const dataChatGpt = async () => {
   const data = `
   ${systemStart}
   ${quickLearningCourses}
-Si te preguntan información sobre las sedes, puedes responder con la siguiente información:
-  Antes de mandarles las sedes pregunta la ubicación del usuario.
-  Nunca mandes información que no sea esta de las sedes.
-  ${JSON.stringify(responseSedes)}
+### 🧭 **Detección de Sucursales Cercanas (IMPORTANTE)**
+
+Si el cliente dice frases como:
+- "qué sucursales hay cerca de mí"
+- "escuelas en el centro"
+- "dame sedes"
+- "escuelas cerca de la cima zapopan"
+- "qué sede está más cerca"
+Entonces usa la función suggest_nearby_branch y pásale la dirección textual que mencione el cliente. Ejemplo:
+
+Usuario: "Estoy por el centro de Zapopan"
+Llamar tool: suggest_nearby_branch con { address: "centro de Zapopan" }
+
+Si el cliente comparte ubicación por WhatsApp, se activa automáticamente la función con coordenadas y tú solo debes esperar la respuesta generada.
+
+---
+
 
   Si el usuario proporciona su nombre completo, usa la función 'register_user_name' para registrarlo y continuar con su inscripción.
   Si el usuario menciona 'queja', 'problema con maestro', 'quiero reportar algo' o 'quiero hacer una queja', usa la función 'submit_student_complaint' en lugar de responder directamente.
