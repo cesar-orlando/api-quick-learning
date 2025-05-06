@@ -119,7 +119,7 @@ const get_start_dates = async (
     let config = {
       method: "get",
       maxBodyLength: Infinity,
-      url: "http://localhost:3000/api/v1/datecourses",
+      url: "http://localhost:10000/api/v1/datecourses",
       headers: {},
     };
 
@@ -210,7 +210,7 @@ const register_user_name = async (fullName, WaId) => {
   const agent = getUsers[agentIndex];
 
   await axios
-    .put(`http://localhost:3000/api/v1/quicklearning/updatecustomer`, {
+    .put(`http://localhost:10000/api/v1/quicklearning/updatecustomer`, {
       phone: WaId,
       name: fullName,
       classification: "Prospecto",
@@ -238,7 +238,7 @@ const submit_student_complaint = async (issueDetails, WaId) => {
   const agent = getUsers[agentIndex];
 
   await axios
-    .put(`http://localhost:3000/api/v1/quicklearning/updatecustomer`, {
+    .put(`http://localhost:10000/api/v1/quicklearning/updatecustomer`, {
       phone: WaId,
       classification: "Urgente",
       status: "Queja",
@@ -260,7 +260,7 @@ const submit_student_complaint = async (issueDetails, WaId) => {
 
 const suggest_branch_or_virtual_course = async (city, WaId) => {
   try {
-    const response = await axios.get("http://localhost:3000/api/v1/sedes");
+    const response = await axios.get("http://localhost:10000/api/v1/sedes");
     const branches = response.data.sedes;
 
     const normalizedCity = city.trim().toLowerCase();
@@ -298,7 +298,7 @@ const suggest_branch_or_virtual_course = async (city, WaId) => {
 
 const suggest_nearby_branch = async (params, WaId) => {
   try {
-    const { data } = await axios.get("http://localhost:3000/api/v1/sedes");
+    const { data } = await axios.get("http://localhost:10000/api/v1/sedes");
     const branches = data.sedes;
 
     let userCoords;
@@ -388,7 +388,7 @@ const suggest_nearby_branch = async (params, WaId) => {
       const agent = getUsers[agentIndex];
 
       await axios
-      .put(`http://localhost:3000/api/v1/quicklearning/updatecustomer`, {
+      .put(`http://localhost:10000/api/v1/quicklearning/updatecustomer`, {
         phone: WaId,
         classification: "Prospecto",
         status: "Interesado",
@@ -420,7 +420,7 @@ const get_branches = async (WaId) => {
   const agent = getUsers[agentIndex];
 
   await axios
-    .put(`http://localhost:3000/api/v1/quicklearning/updatecustomer`, {
+    .put(`http://localhost:10000/api/v1/quicklearning/updatecustomer`, {
       phone: WaId,
       classification: "Prospecto",
       status: "Interesado",
@@ -544,7 +544,7 @@ module.exports = async function generatePersonalityResponse(
 
     // 2. Obtener historial de mensajes del usuario
     const response = await axios
-      .get(`http://localhost:3000/api/v1/chat/messages/${WaId}`)
+      .get(`http://localhost:10000/api/v1/chat/messages/${WaId}`)
       .catch((error) => {
         console.error(
           "Error al obtener el historial de mensajes:",

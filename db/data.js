@@ -319,7 +319,7 @@ const dataChatGpt = async () => {
   let configSedes = {
     method: "get",
     maxBodyLength: Infinity,
-    url: "http://localhost:3000/api/v1/sedes",
+    url: "http://localhost:10000/api/v1/sedes",
     headers: {},
   };
 
@@ -328,7 +328,7 @@ const dataChatGpt = async () => {
   let config = {
     method: "get",
     maxBodyLength: Infinity,
-    url: "http://localhost:3000/api/v1/datecourses",
+    url: "http://localhost:10000/api/v1/datecourses",
     headers: {},
   };
 

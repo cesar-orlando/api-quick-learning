@@ -44,7 +44,7 @@ router.get("/sync-chats", async (req, res) => {
             let config = {
                 method: "post",
                 maxBodyLength: Infinity,
-                url: "http://localhost:3000/api/v2/whastapp/logs-messages",
+                url: "http://localhost:10000/api/v2/whastapp/logs-messages",
                 headers: { "Content-Type": "application/json" },
                 data: JSON.stringify({ numbers })
             };
@@ -136,7 +136,7 @@ router.get("/sync-chat/:phone", async (req, res) => {
         let config = {
             method: "post",
             maxBodyLength: Infinity,
-            url: "http://localhost:3000/api/v2/whastapp/logs-messages",
+            url: "http://localhost:10000/api/v2/whastapp/logs-messages",
             headers: { "Content-Type": "application/json" },
             data: numberData,
         };
@@ -250,7 +250,7 @@ router.get("/messages/assign", async (req, res) => {
             const agentIndex = Math.floor(Math.random() * getUsers.length);
             const agent = getUsers[agentIndex];
 
-            await axios.put(`http://localhost:3000/api/v1/quicklearning/updatecustomer`, {
+            await axios.put(`http://localhost:10000/api/v1/quicklearning/updatecustomer`, {
                 phone: chat.phone,
                 //name: chat.name, // Asumiendo que el nombre está en el chat, si no, ajusta según sea necesario
                 classification: "Prospecto",

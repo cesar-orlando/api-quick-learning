@@ -65,7 +65,7 @@ module.exports = async function schoolAdmissionsAgent(message, number, mediaType
     let config = {
       method: 'post',
       maxBodyLength: Infinity,
-      url: 'http://localhost:3000/api/v2/whastapp/logs-messages',
+      url: 'http://localhost:10000/api/v2/whastapp/logs-messages',
       headers: { 
         'Content-Type': 'application/json'
       },
