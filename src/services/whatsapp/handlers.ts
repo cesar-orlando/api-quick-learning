@@ -1,7 +1,7 @@
 import { Message } from 'whatsapp-web.js';
 import { openai } from '../openai';
-import { Table } from '../../models/table.model';
 import { DynamicRecord } from '../../models/record.model';
+import Table from '../../models/table.model';
 
 export async function handleIncomingMessage(message: Message) {
   const content = message.body.toLowerCase();
