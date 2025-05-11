@@ -1,13 +1,23 @@
-import mongoose from "mongoose";
+import mongoose, { Schema, Document } from "mongoose";
 
-const TableSchema = new mongoose.Schema({
-  name: { type: String, required: true },         // Ej: "Propiedades"
-  slug: { type: String, required: true, unique: true }, // Ej: "propiedades"
-  icon: { type: String }, // Ej: "home"
+export interface ITable extends Document {
+  name: string;
+  slug: string;
+  icon: string;
+  isAIEnabled: boolean; // Indica si la tabla tiene soporte para IA
+}
+
+const TableSchema: Schema = new mongoose.Schema({
+  name: { type: String, required: true },
+  slug: { type: String, required: true, unique: true },
+  icon: { type: String, required: true },
+  isAIEnabled: { type: Boolean, default: false }, // Por defecto, las tablas no tienen IA habilitada
   createdAt: {
     type: Date,
     default: Date.now,
   },
 });
 
-export const Table = mongoose.model('Table', TableSchema);
+const Table = mongoose.model<ITable>("Table", TableSchema);
+
+export default Table;

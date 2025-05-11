@@ -79,10 +79,7 @@ export const deleteCustomField = async (req: Request, res: Response): Promise<vo
     }
 
     // 🔥 Si pasa validación, sí eliminamos el campo
-    await DynamicRecord.updateMany(
-      { tableSlug: slug },
-      { $pull: { customFields: { key } } }
-    );
+    await DynamicRecord.updateMany({ tableSlug: slug }, { $pull: { customFields: { key } } });
 
     res.json({ message: "Campo eliminado exitosamente." });
   } catch (error) {
@@ -175,5 +172,131 @@ export const deleteRecord = async (req: Request, res: Response): Promise<void> =
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Error al eliminar el registro." });
+  }
+};
+
+// 🔹 Crear un nuevo registro dinámico para el cliente en WhatsApp
+export const createDynamicRecord = async (phone: string, name: string) => {
+  console.log("🛠️ Creando un nuevo registro dinámico para el cliente...");
+
+  const newRecord = new DynamicRecord({
+    tableSlug: "prospectos", // Identificador de la tabla dinámica
+    customFields: [
+      {
+        key: "phone",
+        label: "Teléfono",
+        value: phone,
+        visible: true,
+        type: "text",
+        options: [],
+        required: true,
+        format: "default",
+        validations: {},
+      },
+      {
+        key: "name",
+        label: "Nombre",
+        value: name || "Sin nombre",
+        visible: true,
+        type: "text",
+        options: [],
+        required: true,
+        format: "default",
+        validations: {},
+      },
+      {
+        key: "classification",
+        label: "Clasificación",
+        value: "cliente", // Valor inicial
+        visible: true,
+        type: "select",
+        options: ["cliente", "alumno", "prospecto", "exalumno"], // Opciones disponibles
+        required: true,
+        format: "default",
+        validations: {},
+      },
+      {
+        key: "status",
+        label: "Estado",
+        value: "nuevo", // Valor inicial
+        visible: true,
+        type: "select",
+        options: ["nuevo", "en negociación", "alumno activo", "alumno inactivo", "sin interés"],
+        required: true,
+        format: "default",
+        validations: {},
+      },
+      {
+        key: "paymentHistory",
+        label: "Historial de Pagos",
+        value: [], // Inicialmente vacío
+        visible: true,
+        type: "history", // Tipo de campo para manejar un historial
+        options: [],
+        required: false,
+        format: "default",
+        validations: {},
+      },
+      {
+        key: "meetings",
+        label: "Juntas",
+        value: [], // Inicialmente vacío
+        visible: true,
+        type: "history", // Tipo de campo para manejar un historial
+        options: [],
+        required: false,
+        format: "default",
+        validations: {},
+      },
+      {
+        key: "ai",
+        label: "AI",
+        value: true,
+        visible: true,
+        type: "text",
+        options: [],
+        required: false,
+        format: "default",
+        validations: {},
+      },
+      {
+        key: "asesor",
+        label: "Asesor",
+        value: "Sin asesor",
+        visible: true,
+        type: "select",
+        options: [],
+        required: false,
+        format: "default",
+        createdAt: {
+          $date: "2025-05-09T17:21:18.911Z",
+        },
+      },
+    ],
+  });
+
+  // Guardar el nuevo registro en la base de datos
+  await newRecord.save();
+  console.log("✅ Cliente registrado exitosamente:", newRecord);
+
+  return newRecord;
+};
+
+export const findOrCreateCustomer = async (phone: string, name: string) => {
+  try {
+    // Verificar si el cliente ya está registrado
+    const customer = await DynamicRecord.findOne({
+      customFields: { $elemMatch: { key: "phone", value: phone } }, // Buscar en el array de customFields
+    });
+
+    if (!customer) {
+      const newCustomer = await createDynamicRecord(phone, name);
+      return newCustomer;
+    } else {
+      return customer;
+    }
+  } catch (error) {
+    console.error("❌ Error al buscar o crear el cliente:", error);
+    throw new Error("Error al buscar o crear el cliente.");
   }
 };

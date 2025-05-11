@@ -9,6 +9,7 @@ export interface IUser extends mongoose.Document {
   email: string;
   password: string;
   role: UserRole;
+  status: boolean;
   comparePassword(candidate: string): Promise<boolean>;
 }
 
@@ -23,6 +24,7 @@ const userSchema = new mongoose.Schema<IUser>(
       default: "viewer",
       required: true,
     },
+    status: {type: Boolean, default: true},
   },
   { timestamps: true }
 );
