@@ -114,11 +114,11 @@ export const register_user_name = async (full_name: string, WaId: string): Promi
       },
       {
         $set: {
-          "customFields.$[nameField].value": full_name, // Actualizar el nombre
-          "customFields.$[statusField].value": "Interesado", // Actualizar el estado
-          "customFields.$[classificationField].value": "Prospecto", // Actualizar la clasificación
-          "customFields.$[userField].value": agent._id, // Asignar el usuario
-          "customFields.$[aiField].value": false, // Desactivar AI
+          "customFields.$[nameField].value": full_name,
+          "customFields.$[statusField].value": "Interesado",
+          "customFields.$[classificationField].value": "Prospecto",
+          "customFields.$[userField].value": JSON.stringify({ name: agent.name, _id: agent._id }), // Asignar el usuario con el formato requerido
+          "customFields.$[aiField].value": false,
         },
       },
       {
@@ -180,8 +180,8 @@ export const submit_student_complaint = async (issueDetails: string, WaId: strin
         { key: "issueDetails", label: "Detalles del Problema", value: issueDetails, type: "text" },
         { key: "status", label: "Estado", value: "Queja", type: "select" },
         { key: "classification", label: "Clasificación", value: "Urgente", type: "select" },
-        { key: "user", label: "Asesor Asignado", value: agent._id, type: "text" },
-        { key: "ai", label: "AI", value: false, type: "text" }, // Desactivar AI
+        { key: "user", label: "Asesor Asignado", value: JSON.stringify({ name: agent.name, _id: agent._id }), type: "text" }, // Asignar el usuario con el formato requerido
+        { key: "ai", label: "AI", value: false, type: "text" },
       ],
     });
 
@@ -245,7 +245,7 @@ export const suggest_branch_or_virtual_course = async (city: string, WaId: strin
           $set: {
             "customFields.$[classificationField].value": "Prospecto",
             "customFields.$[statusField].value": "Interesado",
-            "customFields.$[userField].value": agent._id,
+            "customFields.$[userField].value": JSON.stringify({ name: agent.name, _id: agent._id }), // Asignar el usuario con el formato requerido
             "customFields.$[aiField].value": false,
           },
         },
@@ -365,7 +365,7 @@ export const suggest_nearby_branch = async (params: any, WaId: string): Promise<
           $set: {
             "customFields.$[classificationField].value": "Prospecto",
             "customFields.$[statusField].value": "Interesado",
-            "customFields.$[userField].value": agent._id,
+            "customFields.$[userField].value": JSON.stringify({ name: agent.name, _id: agent._id }), // Asignar el usuario con el formato requerido
             "customFields.$[aiField].value": false,
           },
         },
