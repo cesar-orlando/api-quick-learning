@@ -270,9 +270,7 @@ export const createDynamicRecord = async (phone: string, name: string) => {
         options: [],
         required: false,
         format: "default",
-        createdAt: {
-          $date: "2025-05-09T17:21:18.911Z",
-        },
+        validations: {},
       },
     ],
   });
