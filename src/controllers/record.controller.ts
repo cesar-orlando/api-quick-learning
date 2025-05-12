@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { DynamicRecord } from "../models/record.model";
 import { sendTwilioMessage } from "../utils/twilio";
+import Chat from "../models/chat.model";
 
 // 🔹 Agregar un campo dinámico a todos los registros de una tabla
 export const addCustomField = async (req: Request, res: Response): Promise<void> => {
@@ -345,12 +346,37 @@ export const sendMessage = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    // Aquí puedes integrar la lógica para enviar el mensaje a través de Twilio o cualquier otro servicio
-    await sendTwilioMessage(phone, message);
+    // Enviar mensaje por Twilio
+    const result = await sendTwilioMessage(phone, message);
 
-    res.json({ message: "Mensaje enviado exitosamente." });
+    // Verifica que Twilio respondió correctamente
+    if (!result?.sid) {
+      console.error("⚠️ Twilio no retornó SID, algo falló silenciosamente");
+      res.status(500).json({ message: "Error al enviar el mensaje." });
+      return;
+    }
+
+    // Guardar en la base de datos
+    let chat = await Chat.findOne({ phone });
+    if (!chat) {
+      chat = new Chat({
+        phone,
+        linkedTable: { refModel: "DynamicRecord" },
+        conversationStart: new Date(),
+      });
+    }
+
+    chat.messages.push({
+      direction: "outbound-api",
+      body: message,
+      respondedBy: "bot",
+    });
+
+    await chat.save();
+
+    res.json({ message: "Mensaje enviado exitosamente.", sid: result.sid });
   } catch (error) {
-    console.error("❌ Error al enviar el mensaje:", error);
+    console.error("❌ Error en sendMessage:", error);
     res.status(500).json({ message: "Error al enviar el mensaje." });
   }
 };

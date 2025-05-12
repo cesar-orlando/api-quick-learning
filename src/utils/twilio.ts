@@ -13,9 +13,10 @@ export const sendTwilioMessage = async (to: string, body: string) => {
       to: `whatsapp:${to}`, // Asegúrate de que el número del destinatario esté en formato WhatsApp
     });
     console.log("✅ Mensaje enviado exitosamente:", message.sid);
+    return message;
   } catch (error) {
     if (error instanceof Error) {
-      console.error("❌ Error al enviar el mensaje:", error.message);
+      console.error("❌ Error al enviar el mensaje twilio:", error.message);
     } else {
       console.error("❌ Error al enviar el mensaje:", error);
     }
