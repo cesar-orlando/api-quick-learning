@@ -264,7 +264,7 @@ export const createDynamicRecord = async (phone: string, name: string) => {
       {
         key: "asesor",
         label: "Asesor",
-        value: "Sin asesor",
+        value: {"name":"Sin Asesor","_id":"681d62c1aac067c51fc2ff8a"},
         visible: true,
         type: "select",
         options: [],
