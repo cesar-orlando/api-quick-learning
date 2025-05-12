@@ -21,6 +21,7 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
     id: user._id,
     name: user.name,
     role: user.role,
+    status: user.status,
   });
 
   res.json({
@@ -30,6 +31,7 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
       name: user.name,
       email: user.email,
       role: user.role,
+      status: user.status,
     },
   });
 };

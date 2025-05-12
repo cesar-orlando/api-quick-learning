@@ -105,10 +105,8 @@ const tools: ChatCompletionTool[] = [
 
 export const responseIA = async (message: string, phoneUser: string): Promise<string> => {
   const initialContext = await generatePrompt();
-  console.log("phoneUser", phoneUser);
   // Obtener historial de mensajes del usuario
   const chatHistory = await Chat.findOne({ phone: phoneUser }); //.populate("messages.advisor").populate("linkedTable.refId");
-  console.log("chatHistory", chatHistory);
 
   let chatHistoryMessages =
     chatHistory?.messages.map((message) => {

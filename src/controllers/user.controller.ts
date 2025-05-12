@@ -39,6 +39,7 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
         res.status(404).json({ message: "User not found" })
         return
     };
+    console.log("opale opale")
     res.json({ message: "User updated" });
 };
 

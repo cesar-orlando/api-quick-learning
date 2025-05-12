@@ -8,8 +8,8 @@ export const sendTwilioMessage = async (to: string, body: string) => {
   try {
     const message = await client.messages.create({
       body,
-      //   from: "whatsapp:+5213341610749", // Número de Twilio habilitado para WhatsApp
-      from: "whatsapp:+14155238886", // Número de Twilio habilitado para WhatsApp
+        from: "whatsapp:+5213341610749", // Número de Twilio habilitado para WhatsApp
+    //   from: "whatsapp:+14155238886", // Número de Twilio habilitado para WhatsApp
       to: `whatsapp:${to}`, // Asegúrate de que el número del destinatario esté en formato WhatsApp
     });
     console.log("✅ Mensaje enviado exitosamente:", message.sid);

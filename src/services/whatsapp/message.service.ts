@@ -7,13 +7,16 @@ export const processMessage = async (body: any, io: any) => {
   // Verificar o crear el cliente
   const customer = await findOrCreateCustomer(WaId, ProfileName);
 
-  // Procesar el mensaje utilizando handleMessageType
-  const result = await handleMessageType(body, customer);
-
-  console.log("result", result);
-  
-
-
-
-  return { message: "Mensaje procesado exitosamente.", record: customer };
+  const aiField = customer?.customFields.find((field: any) => field.key === "ai");
+  // Si no se encuentra el cliente, no procesar el mensaje
+  if (aiField?.value == "false") {
+    console.log("🤖 El cliente tiene AI desactivada.");
+    return { message: "El cliente tiene AI desactivada." };
+  } else {
+    // Procesar el mensaje utilizando handleMessageType
+    const result = await handleMessageType(body, customer);
+    console.log("result", result);
+    
+    return { message: "Mensaje procesado exitosamente.", record: customer };
+  }
 };

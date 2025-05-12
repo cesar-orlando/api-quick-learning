@@ -4,35 +4,23 @@ import dotenv from "dotenv";
 dotenv.config();
 
 import { DynamicRecord } from "../models/record.model";
+import { User } from "../models/user.model"; // Asegúrate de que este sea el modelo correcto para los usuarios
 
 async function main() {
   try {
     await mongoose.connect(process.env.MONGO_URI || "");
     console.log("✅ Conectado a MongoDB");
 
-    const propiedades = await DynamicRecord.find({ tableSlug: "propiedades" });
-    console.log(`📦 Registros encontrados: ${propiedades.length}`);
+    // Obtener todos los usuarios
+    const usuarios = await User.find();
+    console.log(`📦 Usuarios encontrados: ${usuarios.length}`);
 
-    for (const record of propiedades) {
-      let actualizado = false;
-
-      for (const field of record.customFields) {
-        // Rellenar ciudad si está vacía
-        if (field.key === "ciudad" && (!field.value || field.value === "")) {
-          field.value = "Uruapan";
-          actualizado = true;
-        }
-
-        // Rellenar estado si está vacío
-        if (field.key === "estado" && (!field.value || field.value === "")) {
-          field.value = "Michoacán";
-          actualizado = true;
-        }
-      }
-
-      if (actualizado) {
-        await record.save();
-        console.log(`✅ Registro ${record._id} actualizado`);
+    for (const usuario of usuarios) {
+      // Verificar si el campo "status" ya existe
+      if (!usuario.status) {
+        usuario.status = true; // Agregar el campo "status" con el valor "activo"
+        await usuario.save();
+        console.log(`✅ Usuario ${usuario._id} actualizado a "activo"`);
       }
     }
 

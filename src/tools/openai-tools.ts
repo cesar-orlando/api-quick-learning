@@ -180,7 +180,12 @@ export const submit_student_complaint = async (issueDetails: string, WaId: strin
         { key: "issueDetails", label: "Detalles del Problema", value: issueDetails, type: "text" },
         { key: "status", label: "Estado", value: "Queja", type: "select" },
         { key: "classification", label: "Clasificación", value: "Urgente", type: "select" },
-        { key: "user", label: "Asesor Asignado", value: JSON.stringify({ name: agent.name, _id: agent._id }), type: "text" }, // Asignar el usuario con el formato requerido
+        {
+          key: "user",
+          label: "Asesor Asignado",
+          value: JSON.stringify({ name: agent.name, _id: agent._id }),
+          type: "text",
+        }, // Asignar el usuario con el formato requerido
         { key: "ai", label: "AI", value: false, type: "text" },
       ],
     });
@@ -312,20 +317,22 @@ export const suggest_nearby_branch = async (params: any, WaId: string): Promise<
     }
 
     // 🌍 Geolocalizar sucursales
-    const branchesWithCoords = branches.map((branch: any) => {
-      const locationField = branch.customFields.find((field: any) => field.key === "ubicación");
-      const latField = branch.customFields.find((field: any) => field.key === "lat");
-      const lngField = branch.customFields.find((field: any) => field.key === "lng");
+    const branchesWithCoords = branches
+      .map((branch: any) => {
+        const locationField = branch.customFields.find((field: any) => field.key === "ubicación");
+        const latField = branch.customFields.find((field: any) => field.key === "lat");
+        const lngField = branch.customFields.find((field: any) => field.key === "lng");
 
-      if (locationField && latField && lngField) {
-        return {
-          ...branch,
-          lat: parseFloat(latField.value),
-          lng: parseFloat(lngField.value),
-        };
-      }
-      return null;
-    }).filter((branch: any) => branch !== null);
+        if (locationField && latField && lngField) {
+          return {
+            ...branch,
+            lat: parseFloat(latField.value),
+            lng: parseFloat(lngField.value),
+          };
+        }
+        return null;
+      })
+      .filter((branch: any) => branch !== null);
 
     const sedesConDistancia = branchesWithCoords.map((sede: any) => ({
       ...sede,
@@ -335,9 +342,7 @@ export const suggest_nearby_branch = async (params: any, WaId: string): Promise<
       }),
     }));
 
-    const topSedes = sedesConDistancia
-      .sort((a: any, b: any) => a.distance - b.distance)
-      .slice(0, 3);
+    const topSedes = sedesConDistancia.sort((a: any, b: any) => a.distance - b.distance).slice(0, 3);
 
     if (topSedes.length > 0) {
       const lista = topSedes

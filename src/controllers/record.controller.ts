@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { DynamicRecord } from "../models/record.model";
+import { sendTwilioMessage } from "../utils/twilio";
 
 // 🔹 Agregar un campo dinámico a todos los registros de una tabla
 export const addCustomField = async (req: Request, res: Response): Promise<void> => {
@@ -298,5 +299,58 @@ export const findOrCreateCustomer = async (phone: string, name: string) => {
   } catch (error) {
     console.error("❌ Error al buscar o crear el cliente:", error);
     throw new Error("Error al buscar o crear el cliente.");
+  }
+};
+
+// 🔹 Obtener registros dinámicos de la tabla "prospectos" filtrados por el ID del asesor
+export const getProspectRecordsByAsesorId = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { asesorId } = req.params; // ID del asesor que llega en la petición
+
+    if (!asesorId) {
+      res.status(400).json({ message: "El ID del asesor es requerido." });
+      return;
+    }
+
+    // Buscar todos los registros de la tabla "prospectos" que coincidan con el ID del asesor
+    const records = await DynamicRecord.find({
+      tableSlug: "prospectos",
+      customFields: {
+        $elemMatch: {
+          key: "asesor",
+          value: { $regex: `"${asesorId}"`, $options: "i" }, // Buscar el ID del asesor dentro del campo "asesor"
+        },
+      },
+    });
+
+    if (!records.length) {
+      res.status(404).json({ message: "No se encontraron registros para el asesor especificado." });
+      return;
+    }
+
+    res.json(records);
+  } catch (error) {
+    console.error("❌ Error al obtener los registros de prospectos:", error);
+    res.status(500).json({ message: "Error al obtener los registros de prospectos." });
+  }
+};
+
+// 🔹 Envio de un mensaje
+export const sendMessage = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { phone, message } = req.body;
+
+    if (!phone || !message) {
+      res.status(400).json({ message: "El teléfono y el mensaje son requeridos." });
+      return;
+    }
+
+    // Aquí puedes integrar la lógica para enviar el mensaje a través de Twilio o cualquier otro servicio
+    await sendTwilioMessage(phone, message);
+
+    res.json({ message: "Mensaje enviado exitosamente." });
+  } catch (error) {
+    console.error("❌ Error al enviar el mensaje:", error);
+    res.status(500).json({ message: "Error al enviar el mensaje." });
   }
 };
