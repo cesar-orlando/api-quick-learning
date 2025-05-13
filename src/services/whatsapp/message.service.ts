@@ -1,3 +1,4 @@
+import { updateLastMessage } from "../../controllers/chat.controller";
 import { findOrCreateCustomer } from "../../controllers/record.controller";
 import Chat from "../../models/chat.model";
 import { handleMessageType } from "./messageTypeHandler.service";
@@ -26,9 +27,11 @@ export const processMessage = async (body: any, io: any) => {
     chat.messages.push({
       direction: "inbound",
       body: Body,
-      respondedBy: "bot",
+      respondedBy: "human",
     });
     await chat.save();
+    const dateNow = new Date();
+    await updateLastMessage(WaId, Body,dateNow, "human" )
     return { message: "El cliente tiene AI desactivada." };
   } else {
     // Procesar el mensaje utilizando handleMessageType

@@ -5,7 +5,7 @@ interface IMessage {
   direction: "inbound" | "outbound-api";
   body: string;
   dateCreated?: Date;
-  respondedBy: "bot" | "human"; // Identificador de quién respondió
+  respondedBy: "bot" | "human" | "asesor"; // Identificador de quién respondió
   responseTime?: number; // Tiempo en segundos que tardó en responder un humano
 }
 
@@ -31,7 +31,7 @@ const ChatSchema: Schema = new mongoose.Schema({
       direction: { type: String, enum: ["inbound", "outbound-api"], required: true }, // Mensaje recibido o enviado
       body: { type: String, required: true }, // Contenido del mensaje
       dateCreated: { type: Date, default: Date.now }, // Fecha y hora del mensaje
-      respondedBy: { type: String, enum: ["bot", "human"], required: true }, // Identificador de quién respondió
+      respondedBy: { type: String, enum: ["bot", "human", "asesor"], required: true }, // Identificador de quién respondió
       responseTime: { type: Number }, // Tiempo en segundos que tardó en responder un humano
     },
   ],

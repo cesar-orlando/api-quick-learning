@@ -126,3 +126,57 @@ export const getMessagesByPhone = async (req: Request, res: Response): Promise<v
     res.status(500).json({ message: "Error al obtener los mensajes del chat." });
   }
 };
+
+export const updateLastMessage = async (
+  phone: string,
+  messageBody: string,
+  messageDate: Date,
+  respondedBy: "bot" | "human" | "asesor"
+) => {
+  const record = await DynamicRecord.findOne({ tableSlug: "prospectos", "customFields.value": phone });
+
+  if (!record) {
+    console.warn("Cliente no encontrado con ese número:", phone);
+    return;
+  }
+
+  const now = new Date(messageDate);
+
+  const emojiMap = {
+    bot: "🤖",
+    human: "🙋‍♂️",
+    asesor: "👨‍💼",
+  };
+
+  const emoji = emojiMap[respondedBy] || "";
+
+  const formattedMessage = `${messageBody} ${emoji}`;
+
+  const updateOrPushField = (key: string, label: string, value: any, type = "text") => {
+    const index = record.customFields.findIndex((f: any) => f.key === key);
+    const newField = {
+      key,
+      label,
+      value,
+      visible: true,
+      type: "text",
+      options: [],
+      required: false,
+      format: "default",
+      createdAt: new Date(),
+    };
+
+    if (index !== -1) {
+      record.customFields[index].value = value;
+    } else {
+      record.customFields.push(newField);
+    }
+  };
+
+  updateOrPushField("lastMessage", "Último mensaje", formattedMessage);
+  updateOrPushField("lastMessageTime", "Hora del mensaje", now.toISOString(), "date");
+
+  await record.save();
+  console.log(`✅ lastMessage actualizado para ${phone}`);
+};
+

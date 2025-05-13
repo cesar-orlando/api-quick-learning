@@ -5,6 +5,7 @@ import axios from "axios";
 import fs from "fs";
 import FormData from "form-data";
 import { customFieldSchema } from "../../models/schema/customFieldSchema";
+import { updateLastMessage } from "../../controllers/chat.controller";
 type CustomField = typeof customFieldSchema;
 
 const transcribeAudio = async (audioUrl: string) => {
@@ -13,8 +14,16 @@ const transcribeAudio = async (audioUrl: string) => {
     const audioResponse = await axios.get(audioUrl, {
       responseType: "arraybuffer",
       auth: {
-        username: process.env.TWILIO_ACCOUNT_SID || (() => { throw new Error("TWILIO_ACCOUNT_SID is not defined"); })(),
-        password: process.env.TWILIO_AUTH_TOKEN || (() => { throw new Error("TWILIO_AUTH_TOKEN is not defined"); })(),
+        username:
+          process.env.TWILIO_ACCOUNT_SID ||
+          (() => {
+            throw new Error("TWILIO_ACCOUNT_SID is not defined");
+          })(),
+        password:
+          process.env.TWILIO_AUTH_TOKEN ||
+          (() => {
+            throw new Error("TWILIO_AUTH_TOKEN is not defined");
+          })(),
       },
     });
 
@@ -30,16 +39,12 @@ const transcribeAudio = async (audioUrl: string) => {
     formData.append("response_format", "text");
 
     // Paso 4: Enviar el archivo al modelo Whisper de OpenAI
-    const transcriptionResponse = await axios.post(
-      "https://api.openai.com/v1/audio/transcriptions",
-      formData,
-      {
-        headers: {
-          ...formData.getHeaders(),
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        },
-      }
-    );
+    const transcriptionResponse = await axios.post("https://api.openai.com/v1/audio/transcriptions", formData, {
+      headers: {
+        ...formData.getHeaders(),
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      },
+    });
 
     fs.unlinkSync(tempFilePath);
 
@@ -90,10 +95,12 @@ export const handleMessageType = async (body: any, customer: any) => {
   chat.messages.push({
     direction: "inbound",
     body: systemMsg,
-    respondedBy: "bot",
+    respondedBy: "human",
   });
 
   await chat.save();
+  const dateNow = new Date();
+  await updateLastMessage(WaId, Body, dateNow, "human");
 
   // Validar si IA está activa
   if (!customer.customFields.some((field: any) => field.key === "ai" && field.value)) {
@@ -110,6 +117,7 @@ export const handleMessageType = async (body: any, customer: any) => {
   });
 
   await chat.save();
+  await updateLastMessage(WaId, Body, dateNow, "bot");
 
   return { message: `${MessageType} procesado exitosamente.` };
 };

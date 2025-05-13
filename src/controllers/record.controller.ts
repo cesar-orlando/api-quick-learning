@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { DynamicRecord } from "../models/record.model";
 import { sendTwilioMessage } from "../utils/twilio";
 import Chat from "../models/chat.model";
+import { updateLastMessage } from "./chat.controller";
 
 // 🔹 Agregar un campo dinámico a todos los registros de una tabla
 export const addCustomField = async (req: Request, res: Response): Promise<void> => {
@@ -121,7 +122,7 @@ export const getRecordsByTable = async (req: Request, res: Response) => {
 
     const records = await DynamicRecord.find({ tableSlug }).sort({ createdAt: -1 }); // Más recientes arriba
 
-    res.json({records: records, total: records.length});
+    res.json({ records: records, total: records.length });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Error al obtener los registros." });
@@ -264,9 +265,31 @@ export const createDynamicRecord = async (phone: string, name: string) => {
       {
         key: "asesor",
         label: "Asesor",
-        value: JSON.stringify({"name":"Cesar Orlando Magaña Pasaye","_id":"681d62c1aac067c51fc2ff8a"}),
+        value: JSON.stringify({ name: "Cesar Orlando Magaña Pasaye", _id: "681d62c1aac067c51fc2ff8a" }),
         visible: true,
         type: "select",
+        options: [],
+        required: false,
+        format: "default",
+        validations: {},
+      },
+      {
+        key: "lastMessage",
+        label: "Último mensaje",
+        value: "",
+        visible: true,
+        type: "text",
+        options: [],
+        required: false,
+        format: "default",
+        validations: {},
+      },
+      {
+        key: "lastMessageTime",
+        label: "Hora del mensaje",
+        value: "",
+        visible: true,
+        type: "text",
         options: [],
         required: false,
         format: "default",
@@ -327,7 +350,7 @@ export const getProspectRecordsByAsesorId = async (req: Request, res: Response):
       return;
     }
 
-    res.json({records: records, total: records.length});
+    res.json({ records: records, total: records.length });
   } catch (error) {
     console.error("❌ Error al obtener los registros de prospectos:", error);
     res.status(500).json({ message: "Error al obtener los registros de prospectos." });
@@ -367,10 +390,12 @@ export const sendMessage = async (req: Request, res: Response): Promise<void> =>
     chat.messages.push({
       direction: "outbound-api",
       body: message,
-      respondedBy: "bot",
+      respondedBy: "asesor",
     });
 
     await chat.save();
+    const dateNow = new Date();
+    await updateLastMessage(phone, message, dateNow, "asesor");
 
     res.json({ message: "Mensaje enviado exitosamente.", sid: result.sid });
   } catch (error) {
