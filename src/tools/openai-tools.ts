@@ -209,7 +209,7 @@ export const submit_student_complaint = async (issueDetails: string, WaId: strin
 
 export const suggest_branch_or_virtual_course = async (city: string, WaId: string): Promise<string> => {
   try {
-    // Obtener las sedes desde la tabla "sedes"
+    // Obtener las sedes activas desde la tabla "sedes"
     const branches = await DynamicRecord.find({
       tableSlug: "sedes",
       customFields: { $elemMatch: { key: "status", value: "activo" } },
@@ -219,38 +219,42 @@ export const suggest_branch_or_virtual_course = async (city: string, WaId: strin
       throw new Error("No se encontraron sedes activas.");
     }
 
-    // Normalizar la ciudad para la búsqueda
     const normalizedCity = city.trim().toLowerCase();
 
-    // Buscar una sede que coincida con la ciudad
+    const getField = (fields: any[], key: string) =>
+      fields.find((f) => f.key.toLowerCase().trim() === key.toLowerCase().trim());
+
     const foundBranch = branches.find((branch: any) => {
-      const cityField = branch.customFields.find((field: any) => field.key === "Ciudad");
-      return cityField && cityField.value.toLowerCase().includes(normalizedCity);
+      const address = getField(branch.customFields, "direccion");
+      return address && address.value.toLowerCase().includes(normalizedCity);
     });
 
     if (foundBranch) {
-      const nameField = foundBranch.customFields.find((field: any) => field.key === "nombre");
-      const locationField = foundBranch.customFields.find((field: any) => field.key === "ubicación");
-      const googleMapsField = foundBranch.customFields.find((field: any) => field.key === "link de googlemaps");
+      const name = getField(foundBranch.customFields, "nombre")?.value || "Sucursal sin nombre";
+      const address = getField(foundBranch.customFields, "direccion")?.value || "Dirección no disponible";
+      const mapLink = getField(foundBranch.customFields, "googlelink")?.value || "Sin enlace de ubicación";
 
-      return `📍 ¡Qué bonito lugar! Tenemos una sucursal en tu ciudad:\n\n🏫 *${nameField?.value}*\n📍 Dirección: ${locationField?.value}\n🌐 Google Maps: ${googleMapsField?.value}\n\n¿Cómo te gustaría aprender inglés? Contamos con tres modalidades:\n\n1. Presencial – Asistes físicamente a la escuela.\n2. Virtual (a distancia) – Clases en vivo por videollamada.\n3. Online – Plataforma autogestionada a tu ritmo, sin horarios.\n\n¿Cuál prefieres?`;
+      return `📍 ¡Excelente! Tenemos una sucursal en tu ciudad:\n\n🏫 *${name}*\n📍 Dirección: ${address}\n🌐 Google Maps: ${mapLink}\n\nContamos con tres modalidades:\n1. Presencial\n2. Virtual (videollamada en vivo)\n3. Online (plataforma autogestionada)\n\n¿Cuál prefieres?`;
     } else {
-      // Si no se encuentra una sucursal, asignar un asesor y desactivar la IA
+      // No se encontró sucursal, se responde con opciones virtuales
       const users = await User.find();
-      if (users.length === 0) {
-        throw new Error("No hay usuarios disponibles para asignar.");
-      }
+      if (!users.length) throw new Error("No hay usuarios disponibles para asignar.");
 
-      const agentIndex = Math.floor(Math.random() * users.length);
-      const agent = users[agentIndex];
+      const randomUser = users[Math.floor(Math.random() * users.length)];
 
       await DynamicRecord.findOneAndUpdate(
-        { tableSlug: "prospectos", customFields: { $elemMatch: { key: "phone", value: WaId } } },
+        {
+          tableSlug: "prospectos",
+          customFields: { $elemMatch: { key: "phone", value: WaId } },
+        },
         {
           $set: {
             "customFields.$[classificationField].value": "Prospecto",
             "customFields.$[statusField].value": "Interesado",
-            "customFields.$[userField].value": JSON.stringify({ name: agent.name, _id: agent._id }), // Asignar el usuario con el formato requerido
+            "customFields.$[userField].value": JSON.stringify({
+              name: randomUser.name,
+              _id: randomUser._id,
+            }),
             "customFields.$[aiField].value": false,
           },
         },
@@ -265,17 +269,18 @@ export const suggest_branch_or_virtual_course = async (city: string, WaId: strin
         }
       );
 
-      return `🤖 ¡Qué padre, ${city} es un lugar hermoso! Actualmente no tenemos una sucursal presencial ahí, pero no te preocupes...\n\n🎯 Tenemos dos opciones increíbles para ti:\n1. **Virtual** – Clases en vivo por videollamada con maestros certificados.\n2. **Online** – Aprende a tu propio ritmo con nuestra plataforma 24/7.\n\n📲 Ambas opciones son súper efectivas y puedes tomarlas desde la comodidad de tu casa.\n\n¿Te gustaría que te cuente más detalles para que elijas la que mejor se adapta a ti?`;
+      return `🤖 ¡Qué padre, ${city} es un lugar hermoso! Actualmente no tenemos una sucursal presencial ahí, pero no te preocupes...\n\n🎯 Tenemos dos opciones para ti:\n1. **Virtual** – Clases en vivo por videollamada.\n2. **Online** – Plataforma que puedes usar a tu ritmo.\n\n¿Te gustaría que te cuente más?`;
     }
   } catch (error) {
     console.error("Error al obtener sedes:", (error as any).message);
-    return "No pude verificar las sedes en este momento, pero si me dices tu ciudad, puedo ayudarte manualmente.";
+    return "No pude verificar las sedes en este momento. ¿Me puedes decir tu ciudad para ayudarte?";
   }
 };
 
+
 export const suggest_nearby_branch = async (params: any, WaId: string): Promise<string> => {
   try {
-    // Obtener las sedes activas desde la tabla "sedes"
+    // Obtener las sedes activas
     const branches = await DynamicRecord.find({
       tableSlug: "sedes",
       customFields: { $elemMatch: { key: "status", value: "activo" } },
@@ -285,16 +290,15 @@ export const suggest_nearby_branch = async (params: any, WaId: string): Promise<
       throw new Error("No se encontraron sedes activas.");
     }
 
+    // Obtener coordenadas del usuario
     let userCoords;
 
-    // 📍 Si vienen coordenadas, las usamos directamente
     if (params.lat && params.lng) {
       userCoords = {
         latitude: parseFloat(params.lat),
         longitude: parseFloat(params.lng),
       };
     } else if (params.address) {
-      // 🗺️ Si viene una dirección, la geocodificamos
       const geo = await axios.get("http://api.positionstack.com/v1/forward", {
         params: {
           access_key: process.env.POSITIONSTACK_API_KEY,
@@ -316,61 +320,73 @@ export const suggest_nearby_branch = async (params: any, WaId: string): Promise<
       return "Necesito una dirección o ubicación para poder ayudarte.";
     }
 
-    // 🌍 Geolocalizar sucursales
-    const branchesWithCoords = branches
-      .map((branch: any) => {
-        const locationField = branch.customFields.find((field: any) => field.key === "ubicación");
-        const latField = branch.customFields.find((field: any) => field.key === "lat");
-        const lngField = branch.customFields.find((field: any) => field.key === "lng");
+    // Función para acceder a campos de manera segura
+    const getField = (fields: any[], key: string) =>
+      fields.find((f) => f.key.toLowerCase().trim() === key.toLowerCase().trim());
 
-        if (locationField && latField && lngField) {
-          return {
-            ...branch,
-            lat: parseFloat(latField.value),
-            lng: parseFloat(lngField.value),
-          };
-        }
-        return null;
+    // Geocodificar cada sede y calcular distancia
+    const branchesWithDistance = await Promise.all(
+      branches.map(async (branch: any) => {
+        const address = getField(branch.customFields, "direccion")?.value;
+        const name = getField(branch.customFields, "nombre")?.value;
+        const mapLink = getField(branch.customFields, "googlelink")?.value;
+
+        if (!address || !name) return null;
+
+        const geo = await axios.get("http://api.positionstack.com/v1/forward", {
+          params: {
+            access_key: process.env.POSITIONSTACK_API_KEY,
+            query: address,
+            limit: 1,
+            country: "MX",
+          },
+        });
+
+        if (!geo.data.data.length) return null;
+
+        const coords = {
+          latitude: geo.data.data[0].latitude,
+          longitude: geo.data.data[0].longitude,
+        };
+
+        return {
+          name,
+          address,
+          mapLink,
+          distance: geolib.getDistance(userCoords, coords),
+        };
       })
-      .filter((branch: any) => branch !== null);
+    );
 
-    const sedesConDistancia = branchesWithCoords.map((sede: any) => ({
-      ...sede,
-      distance: geolib.getDistance(userCoords, {
-        latitude: sede.lat,
-        longitude: sede.lng,
-      }),
-    }));
+    const validBranches = branchesWithDistance.filter(Boolean).sort((a: any, b: any) => a.distance - b.distance);
 
-    const topSedes = sedesConDistancia.sort((a: any, b: any) => a.distance - b.distance).slice(0, 3);
-
-    if (topSedes.length > 0) {
-      const lista = topSedes
-        .map((s: any, i: number) => {
-          const nameField = s.customFields.find((field: any) => field.key === "nombre");
-          const locationField = s.customFields.find((field: any) => field.key === "ubicación");
-          return `*${i + 1}.* ${nameField?.value}\n📍 ${locationField?.value}`;
-        })
+    if (validBranches.length > 0) {
+      const lista = validBranches
+        .slice(0, 3)
+        .map((s: any, i: number) => `*${i + 1}.* ${s.name}\n📍 ${s.address}\n🌐 ${s.mapLink || "Sin enlace"}`)
         .join("\n\n");
 
       return `Estas son las sucursales más cercanas a ti:\n\n${lista}\n\n¿Te gustaría que te dé los horarios o modalidades que manejan en esta sucursal?`;
     } else {
-      // Si no se encuentran sucursales cercanas, asignar un asesor y desactivar la IA
+      // No hay sucursales cercanas, asignar asesor
       const users = await User.find();
-      if (users.length === 0) {
-        throw new Error("No hay usuarios disponibles para asignar.");
-      }
+      if (users.length === 0) throw new Error("No hay usuarios disponibles para asignar.");
 
-      const agentIndex = Math.floor(Math.random() * users.length);
-      const agent = users[agentIndex];
+      const randomUser = users[Math.floor(Math.random() * users.length)];
 
       await DynamicRecord.findOneAndUpdate(
-        { tableSlug: "prospectos", customFields: { $elemMatch: { key: "phone", value: WaId } } },
+        {
+          tableSlug: "prospectos",
+          customFields: { $elemMatch: { key: "phone", value: WaId } },
+        },
         {
           $set: {
             "customFields.$[classificationField].value": "Prospecto",
             "customFields.$[statusField].value": "Interesado",
-            "customFields.$[userField].value": JSON.stringify({ name: agent.name, _id: agent._id }), // Asignar el usuario con el formato requerido
+            "customFields.$[userField].value": JSON.stringify({
+              name: randomUser.name,
+              _id: randomUser._id,
+            }),
             "customFields.$[aiField].value": false,
           },
         },

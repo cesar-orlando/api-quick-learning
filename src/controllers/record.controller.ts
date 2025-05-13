@@ -327,7 +327,7 @@ export const getProspectRecordsByAsesorId = async (req: Request, res: Response):
       return;
     }
 
-    res.json(records);
+    res.json({records: records, total: records.length});
   } catch (error) {
     console.error("❌ Error al obtener los registros de prospectos:", error);
     res.status(500).json({ message: "Error al obtener los registros de prospectos." });
