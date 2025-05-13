@@ -2,6 +2,8 @@ import axios from "axios";
 import { User } from "../models/user.model"; // Modelo para los usuarios
 import { DynamicRecord } from "../models/record.model";
 import geolib from "geolib"; // Biblioteca para calcular distancias
+import { getDistance } from "geolib";
+
 
 export const get_start_dates = async (requestedDate = null, isGenericRequest = false) => {
   try {
@@ -255,7 +257,7 @@ export const suggest_branch_or_virtual_course = async (city: string, WaId: strin
               name: randomUser.name,
               _id: randomUser._id,
             }),
-            "customFields.$[aiField].value": false,
+            "customFields.$[aiField].value": true,
           },
         },
         {
@@ -278,15 +280,15 @@ export const suggest_branch_or_virtual_course = async (city: string, WaId: strin
 };
 
 
+
 export const suggest_nearby_branch = async (params: any, WaId: string): Promise<string> => {
   try {
-    // Obtener las sedes activas
     const branches = await DynamicRecord.find({
       tableSlug: "sedes",
       customFields: { $elemMatch: { key: "status", value: "activo" } },
     });
 
-    if (!branches || branches.length === 0) {
+    if (!branches.length) {
       throw new Error("No se encontraron sedes activas.");
     }
 
@@ -320,7 +322,7 @@ export const suggest_nearby_branch = async (params: any, WaId: string): Promise<
       return "Necesito una dirección o ubicación para poder ayudarte.";
     }
 
-    // Función para acceder a campos de manera segura
+    // Obtener campo dinámico
     const getField = (fields: any[], key: string) =>
       fields.find((f) => f.key.toLowerCase().trim() === key.toLowerCase().trim());
 
@@ -333,28 +335,32 @@ export const suggest_nearby_branch = async (params: any, WaId: string): Promise<
 
         if (!address || !name) return null;
 
-        const geo = await axios.get("http://api.positionstack.com/v1/forward", {
-          params: {
-            access_key: process.env.POSITIONSTACK_API_KEY,
-            query: address,
-            limit: 1,
-            country: "MX",
-          },
-        });
+        try {
+          const geo = await axios.get("http://api.positionstack.com/v1/forward", {
+            params: {
+              access_key: process.env.POSITIONSTACK_API_KEY,
+              query: address,
+              limit: 1,
+              country: "MX",
+            },
+          });
 
-        if (!geo.data.data.length) return null;
+          if (!geo.data.data.length) return null;
 
-        const coords = {
-          latitude: geo.data.data[0].latitude,
-          longitude: geo.data.data[0].longitude,
-        };
+          const coords = {
+            latitude: geo.data.data[0].latitude,
+            longitude: geo.data.data[0].longitude,
+          };
 
-        return {
-          name,
-          address,
-          mapLink,
-          distance: geolib.getDistance(userCoords, coords),
-        };
+          return {
+            name,
+            address,
+            mapLink,
+            distance: getDistance(userCoords, coords),
+          };
+        } catch (err) {
+          return null; // por si una sede no se puede geolocalizar
+        }
       })
     );
 
@@ -366,11 +372,11 @@ export const suggest_nearby_branch = async (params: any, WaId: string): Promise<
         .map((s: any, i: number) => `*${i + 1}.* ${s.name}\n📍 ${s.address}\n🌐 ${s.mapLink || "Sin enlace"}`)
         .join("\n\n");
 
-      return `Estas son las sucursales más cercanas a ti:\n\n${lista}\n\n¿Te gustaría que te dé los horarios o modalidades que manejan en esta sucursal?`;
+      return `Estas son las sucursales más cercanas a ti:\n\n${lista}\n\n¿Te late alguna?`;
     } else {
-      // No hay sucursales cercanas, asignar asesor
+      // Sin sucursales cercanas → asignar asesor
       const users = await User.find();
-      if (users.length === 0) throw new Error("No hay usuarios disponibles para asignar.");
+      if (!users.length) throw new Error("No hay usuarios disponibles para asignar.");
 
       const randomUser = users[Math.floor(Math.random() * users.length)];
 
