@@ -119,9 +119,9 @@ export const getRecordsByTable = async (req: Request, res: Response) => {
   try {
     const { tableSlug } = req.params;
 
-    const records = await DynamicRecord.find({ tableSlug });
+    const records = await DynamicRecord.find({ tableSlug }).sort({ createdAt: -1 }); // Más recientes arriba
 
-    res.json(records);
+    res.json({records: records, total: records.length});
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Error al obtener los registros." });
@@ -255,8 +255,8 @@ export const createDynamicRecord = async (phone: string, name: string) => {
         label: "AI",
         value: true,
         visible: true,
-        type: "text",
-        options: [],
+        type: "select",
+        options: ["true", "false"],
         required: false,
         format: "default",
         validations: {},
@@ -264,7 +264,7 @@ export const createDynamicRecord = async (phone: string, name: string) => {
       {
         key: "asesor",
         label: "Asesor",
-        value: {"name":"Sin Asesor","_id":"681d62c1aac067c51fc2ff8a"},
+        value: JSON.stringify({"name":"Cesar Orlando Magaña Pasaye","_id":"681d62c1aac067c51fc2ff8a"}),
         visible: true,
         type: "select",
         options: [],
