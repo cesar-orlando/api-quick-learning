@@ -183,12 +183,14 @@ export const deleteRecord = async (req: Request, res: Response): Promise<void> =
 export const createDynamicRecord = async (phone: string, name: string) => {
   console.log("🛠️ Creando un nuevo registro dinámico para el cliente...");
 
-  // 🔍 Buscar un asesor activo del área de ventas
-  const activeUser = await User.findOne({ status: true, role: "sales" }).sort({ createdAt: -1 });
+  const activeUsers = await User.find({ status: true, role: "sales" });
 
-  if (!activeUser) {
-    throw new Error("❌ No se encontró un usuario activo para asignar.");
+  if (!activeUsers.length) {
+    throw new Error("❌ No se encontró ningún usuario activo para asignar.");
   }
+  
+  const activeUser = activeUsers[Math.floor(Math.random() * activeUsers.length)];
+  
 
   // 🔍 Obtener campos definidos de la tabla 'prospectos' (usando el primer registro como referencia)
   const referenceRecord = await DynamicRecord.findOne({ tableSlug: "prospectos" });
