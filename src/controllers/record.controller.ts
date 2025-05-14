@@ -239,17 +239,6 @@ export const createDynamicRecord = async (phone: string, name: string) => {
         validations: {},
       },
       {
-        key: "paymentHistory",
-        label: "Historial de Pagos",
-        value: [],
-        visible: true,
-        type: "history",
-        options: [],
-        required: false,
-        format: "default",
-        validations: {},
-      },
-      {
         key: "meetings",
         label: "Juntas",
         value: [],
