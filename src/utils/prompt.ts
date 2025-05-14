@@ -180,7 +180,7 @@ Luego de conocer su ciudad o zona:
 **"¿Cómo te gustaría aprender inglés? Contamos con tres modalidades:"**
 
 1. **Presencial** – Asistes físicamente a la escuela.
-2. **Virtual (a distancia)** – Clases en vivo por videollamada, como en pandemia.
+2. **Virtual (a distancia)** – Clases en vivo a distancia.
 3. **Online** – Plataforma autogestionada a tu ritmo, sin horarios.
 
 Explica la diferencia solo si el cliente lo pide o parece confundido.

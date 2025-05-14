@@ -3,6 +3,7 @@ import { DynamicRecord } from "../models/record.model";
 import { sendTwilioMessage } from "../utils/twilio";
 import Chat from "../models/chat.model";
 import { updateLastMessage } from "./chat.controller";
+import { User } from "../models/user.model";
 
 // 🔹 Agregar un campo dinámico a todos los registros de una tabla
 export const addCustomField = async (req: Request, res: Response): Promise<void> => {
@@ -179,11 +180,19 @@ export const deleteRecord = async (req: Request, res: Response): Promise<void> =
 };
 
 // 🔹 Crear un nuevo registro dinámico para el cliente en WhatsApp
+
 export const createDynamicRecord = async (phone: string, name: string) => {
   console.log("🛠️ Creando un nuevo registro dinámico para el cliente...");
 
+  // Buscar el primer asesor activo
+  const activeUser = await User.findOne({ status: true, role: "sales" }).sort({ createdAt: -1 });
+
+  if (!activeUser) {
+    throw new Error("❌ No se encontró un usuario activo para asignar.");
+  }
+
   const newRecord = new DynamicRecord({
-    tableSlug: "prospectos", // Identificador de la tabla dinámica
+    tableSlug: "prospectos",
     customFields: [
       {
         key: "phone",
@@ -210,10 +219,10 @@ export const createDynamicRecord = async (phone: string, name: string) => {
       {
         key: "classification",
         label: "Clasificación",
-        value: "prospecto", // Valor inicial
+        value: "prospecto",
         visible: true,
         type: "select",
-        options: ["cliente", "alumno", "prospecto", "exalumno"], // Opciones disponibles
+        options: ["cliente", "alumno", "prospecto", "exalumno"],
         required: true,
         format: "default",
         validations: {},
@@ -221,7 +230,7 @@ export const createDynamicRecord = async (phone: string, name: string) => {
       {
         key: "status",
         label: "Estado",
-        value: "nuevo", // Valor inicial
+        value: "nuevo",
         visible: true,
         type: "select",
         options: ["nuevo", "en negociación", "alumno activo", "alumno inactivo", "sin interés"],
@@ -232,9 +241,9 @@ export const createDynamicRecord = async (phone: string, name: string) => {
       {
         key: "paymentHistory",
         label: "Historial de Pagos",
-        value: [], // Inicialmente vacío
+        value: [],
         visible: true,
-        type: "history", // Tipo de campo para manejar un historial
+        type: "history",
         options: [],
         required: false,
         format: "default",
@@ -243,9 +252,9 @@ export const createDynamicRecord = async (phone: string, name: string) => {
       {
         key: "meetings",
         label: "Juntas",
-        value: [], // Inicialmente vacío
+        value: [],
         visible: true,
-        type: "history", // Tipo de campo para manejar un historial
+        type: "history",
         options: [],
         required: false,
         format: "default",
@@ -265,7 +274,7 @@ export const createDynamicRecord = async (phone: string, name: string) => {
       {
         key: "asesor",
         label: "Asesor",
-        value: JSON.stringify({ name: "Cesar Orlando Magaña Pasaye", _id: "681d62c1aac067c51fc2ff8a" }),
+        value: JSON.stringify({ name: activeUser.name, _id: activeUser._id }),
         visible: true,
         type: "select",
         options: [],
@@ -298,12 +307,12 @@ export const createDynamicRecord = async (phone: string, name: string) => {
     ],
   });
 
-  // Guardar el nuevo registro en la base de datos
   await newRecord.save();
   console.log("✅ Cliente registrado exitosamente:", newRecord);
 
   return newRecord;
 };
+
 
 export const findOrCreateCustomer = async (phone: string, name: string) => {
   try {
