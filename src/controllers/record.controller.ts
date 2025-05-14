@@ -180,120 +180,107 @@ export const deleteRecord = async (req: Request, res: Response): Promise<void> =
 };
 
 // 🔹 Crear un nuevo registro dinámico para el cliente en WhatsApp
-
 export const createDynamicRecord = async (phone: string, name: string) => {
   console.log("🛠️ Creando un nuevo registro dinámico para el cliente...");
 
-  // Buscar el primer asesor activo
+  // 🔍 Buscar un asesor activo del área de ventas
   const activeUser = await User.findOne({ status: true, role: "sales" }).sort({ createdAt: -1 });
 
   if (!activeUser) {
     throw new Error("❌ No se encontró un usuario activo para asignar.");
   }
 
+  // 🔍 Obtener campos definidos de la tabla 'prospectos' (usando el primer registro como referencia)
+  const referenceRecord = await DynamicRecord.findOne({ tableSlug: "prospectos" });
+  const definedFields = referenceRecord?.customFields || [];
+
+  // 🔧 Campos base obligatorios
+  const baseFields = [
+    { key: "phone", label: "Teléfono", value: phone },
+    { key: "name", label: "Nombre", value: name || "Sin nombre" },
+    {
+      key: "classification",
+      label: "Clasificación",
+      value: "prospecto",
+      options: ["cliente", "alumno", "prospecto", "exalumno"],
+      type: "select",
+    },
+    {
+      key: "status",
+      label: "Estado",
+      value: "nuevo",
+      options: ["nuevo", "en negociación", "alumno activo", "alumno inactivo", "sin interés"],
+      type: "select",
+    },
+    {
+      key: "asesor",
+      label: "Asesor",
+      value: JSON.stringify({ name: activeUser.name, _id: activeUser._id }),
+      type: "select",
+    },
+    {
+      key: "ai",
+      label: "AI",
+      value: true,
+      options: ["true", "false"],
+      type: "select",
+    },
+    {
+      key: "lastMessage",
+      label: "Último mensaje",
+      value: "",
+    },
+    {
+      key: "lastMessageTime",
+      label: "Hora del mensaje",
+      value: "",
+    },
+    {
+      key: "meetings",
+      label: "Juntas",
+      value: [],
+      type: "history",
+    },
+  ];
+
+  // 🧠 Combinar base + extras dinámicos
+  const customFieldsMap: { [key: string]: any } = {};
+  baseFields.forEach((f) => (customFieldsMap[f.key] = f));
+
+  // Agregar campos faltantes del esquema (si no están ya definidos)
+  for (const field of definedFields) {
+    if (!customFieldsMap[field.key]) {
+      customFieldsMap[field.key] = {
+        key: field.key,
+        label: field.label,
+        value: field.type === "history" ? [] : "",
+        visible: true,
+        type: field.type || "text",
+        options: field.options || [],
+        required: field.required || false,
+        format: field.format || "default",
+        validations: {},
+      };
+    }
+  }
+
+  // Convertir a arreglo
+  const finalCustomFields = Object.values(customFieldsMap).map((field: any) => ({
+    key: field.key,
+    label: field.label,
+    value: field.value,
+    visible: field.visible ?? true,
+    type: field.type ?? "text",
+    options: field.options ?? [],
+    required: field.required ?? false,
+    format: field.format ?? "default",
+    validations: {},
+  }));
+
+  // 🧾 Crear el registro
   const newRecord = new DynamicRecord({
     tableSlug: "prospectos",
-    customFields: [
-      {
-        key: "phone",
-        label: "Teléfono",
-        value: phone,
-        visible: true,
-        type: "text",
-        options: [],
-        required: true,
-        format: "default",
-        validations: {},
-      },
-      {
-        key: "name",
-        label: "Nombre",
-        value: name || "Sin nombre",
-        visible: true,
-        type: "text",
-        options: [],
-        required: true,
-        format: "default",
-        validations: {},
-      },
-      {
-        key: "classification",
-        label: "Clasificación",
-        value: "prospecto",
-        visible: true,
-        type: "select",
-        options: ["cliente", "alumno", "prospecto", "exalumno"],
-        required: true,
-        format: "default",
-        validations: {},
-      },
-      {
-        key: "status",
-        label: "Estado",
-        value: "nuevo",
-        visible: true,
-        type: "select",
-        options: ["nuevo", "en negociación", "alumno activo", "alumno inactivo", "sin interés"],
-        required: true,
-        format: "default",
-        validations: {},
-      },
-      {
-        key: "meetings",
-        label: "Juntas",
-        value: [],
-        visible: true,
-        type: "history",
-        options: [],
-        required: false,
-        format: "default",
-        validations: {},
-      },
-      {
-        key: "ai",
-        label: "AI",
-        value: true,
-        visible: true,
-        type: "select",
-        options: ["true", "false"],
-        required: false,
-        format: "default",
-        validations: {},
-      },
-      {
-        key: "asesor",
-        label: "Asesor",
-        value: JSON.stringify({ name: activeUser.name, _id: activeUser._id }),
-        visible: true,
-        type: "select",
-        options: [],
-        required: false,
-        format: "default",
-        validations: {},
-      },
-      {
-        key: "lastMessage",
-        label: "Último mensaje",
-        value: "",
-        visible: true,
-        type: "text",
-        options: [],
-        required: false,
-        format: "default",
-        validations: {},
-      },
-      {
-        key: "lastMessageTime",
-        label: "Hora del mensaje",
-        value: "",
-        visible: true,
-        type: "text",
-        options: [],
-        required: false,
-        format: "default",
-        validations: {},
-      },
-    ],
+    customFields: finalCustomFields,
   });
 
   await newRecord.save();
@@ -301,6 +288,7 @@ export const createDynamicRecord = async (phone: string, name: string) => {
 
   return newRecord;
 };
+
 
 
 export const findOrCreateCustomer = async (phone: string, name: string) => {
