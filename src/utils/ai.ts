@@ -137,8 +137,8 @@ export const responseIA = async (message: string, phoneUser: string): Promise<st
   const completion = await openai.chat.completions.create({
     model: "gpt-4-turbo",
     messages: chatHistoryMessages as ChatCompletionMessageParam[], // Ensure type compatibility
-    temperature: 0.7,
-    top_p: 1,
+    temperature: 0.3,
+    top_p: 0.9,
     frequency_penalty: 2,
     presence_penalty: 0,
     tools: tools,

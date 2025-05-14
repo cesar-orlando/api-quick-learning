@@ -279,6 +279,88 @@ export const suggest_branch_or_virtual_course = async (city: string, WaId: strin
   }
 };
 
+const geocodeAddress = async (address: string) => {
+  try {
+    // 🔹 1. Primero intentar con PositionStack
+    const response = await axios.get("http://api.positionstack.com/v1/forward", {
+      params: {
+        access_key: process.env.POSITIONSTACK_API_KEY,
+        query: address,
+        limit: 1,
+        country: "MX",
+      },
+    });
+
+    if (response.data?.data?.length > 0) {
+      return {
+        lat: response.data.data[0].latitude,
+        lng: response.data.data[0].longitude,
+        source: "positionstack",
+      };
+    }
+
+    throw new Error("PositionStack no encontró resultados");
+  } catch (error1) {
+    console.warn("⚠️ PositionStack falló. Probando con OpenCage...");
+
+    try {
+      // 🔸 2. Fallback a OpenCage
+      const fallback = await axios.get("https://api.opencagedata.com/geocode/v1/json", {
+        params: {
+          key: process.env.OPENCAGE_API_KEY,
+          q: address,
+          countrycode: "mx",
+          limit: 1,
+        },
+      });
+
+      if (fallback.data?.results?.length > 0) {
+        return {
+          lat: fallback.data.results[0].geometry.lat,
+          lng: fallback.data.results[0].geometry.lng,
+          source: "opencage",
+        };
+      }
+
+      // console.log("fallback.data", fallback.data);
+
+      throw new Error("OpenCage tampoco encontró resultados");
+    } catch (error2) {
+      console.warn("⚠️ OpenCage falló. Probando con Nominatim...");
+
+      try {
+        // 🔹 3. Fallback final a Nominatim OpenStreetMap
+        const nominatim = await axios.get("https://nominatim.openstreetmap.org/search", {
+          params: {
+            q: address,
+            format: "json",
+            addressdetails: 1,
+            limit: 1,
+            countrycodes: "mx",
+          },
+          headers: {
+            "User-Agent": "VirtualVoices/1.0 (yourvirtualvoices@gmail.com)",
+          },
+        });
+
+        if (nominatim.data?.length > 0) {
+          return {
+            lat: nominatim.data[0].lat,
+            lng: nominatim.data[0].lon,
+            source: "nominatim",
+          };
+        }
+
+        // console.log("nominatim.data", nominatim);
+
+        throw new Error("Nominatim tampoco encontró resultados");
+      } catch (error3) {
+        // console.error("❌ Todos los servicios de geocodificación fallaron:", (error3 as any).message);
+        throw new Error("No se pudo geocodificar la dirección con ningún servicio.");
+      }
+    }
+  }
+};
 
 
 export const suggest_nearby_branch = async (params: any, WaId: string): Promise<string> => {
@@ -288,11 +370,8 @@ export const suggest_nearby_branch = async (params: any, WaId: string): Promise<
       customFields: { $elemMatch: { key: "status", value: "activo" } },
     });
 
-    if (!branches.length) {
-      throw new Error("No se encontraron sedes activas.");
-    }
+    if (!branches.length) throw new Error("No se encontraron sedes activas.");
 
-    // Obtener coordenadas del usuario
     let userCoords;
 
     if (params.lat && params.lng) {
@@ -301,32 +380,18 @@ export const suggest_nearby_branch = async (params: any, WaId: string): Promise<
         longitude: parseFloat(params.lng),
       };
     } else if (params.address) {
-      const geo = await axios.get("http://api.positionstack.com/v1/forward", {
-        params: {
-          access_key: process.env.POSITIONSTACK_API_KEY,
-          query: params.address,
-          limit: 1,
-          country: "MX",
-        },
-      });
-
-      if (!geo.data.data.length) {
-        return "No pude encontrar tu ubicación exacta. ¿Puedes darme una dirección más específica?";
-      }
-
+      const geo = await geocodeAddress(params.address);
       userCoords = {
-        latitude: geo.data.data[0].latitude,
-        longitude: geo.data.data[0].longitude,
+        latitude: geo.lat,
+        longitude: geo.lng,
       };
     } else {
       return "Necesito una dirección o ubicación para poder ayudarte.";
     }
 
-    // Obtener campo dinámico
     const getField = (fields: any[], key: string) =>
       fields.find((f) => f.key.toLowerCase().trim() === key.toLowerCase().trim());
 
-    // Geocodificar cada sede y calcular distancia
     const branchesWithDistance = await Promise.all(
       branches.map(async (branch: any) => {
         const address = getField(branch.customFields, "direccion")?.value;
@@ -336,20 +401,10 @@ export const suggest_nearby_branch = async (params: any, WaId: string): Promise<
         if (!address || !name) return null;
 
         try {
-          const geo = await axios.get("http://api.positionstack.com/v1/forward", {
-            params: {
-              access_key: process.env.POSITIONSTACK_API_KEY,
-              query: address,
-              limit: 1,
-              country: "MX",
-            },
-          });
-
-          if (!geo.data.data.length) return null;
-
+          const geo = await geocodeAddress(address);
           const coords = {
-            latitude: geo.data.data[0].latitude,
-            longitude: geo.data.data[0].longitude,
+            latitude: geo.lat,
+            longitude: geo.lng,
           };
 
           return {
@@ -359,7 +414,7 @@ export const suggest_nearby_branch = async (params: any, WaId: string): Promise<
             distance: getDistance(userCoords, coords),
           };
         } catch (err) {
-          return null; // por si una sede no se puede geolocalizar
+          return null;
         }
       })
     );
@@ -374,7 +429,6 @@ export const suggest_nearby_branch = async (params: any, WaId: string): Promise<
 
       return `Estas son las sucursales más cercanas a ti:\n\n${lista}\n\n¿Te late alguna?`;
     } else {
-      // Sin sucursales cercanas → asignar asesor
       const users = await User.find();
       if (!users.length) throw new Error("No hay usuarios disponibles para asignar.");
 
@@ -414,3 +468,4 @@ export const suggest_nearby_branch = async (params: any, WaId: string): Promise<
     return "No pude verificar las sucursales en este momento. ¿Puedes decirme tu ciudad o dirección?";
   }
 };
+
