@@ -1,10 +1,11 @@
 import { Request, Response } from "express";
 import { processMessage } from "../services/whatsapp/message.service";
+import { getSocketIO } from "../socket";
 
 export const handleMessage = async (req: Request, res: Response): Promise<void> => {
   try {
     const { body } = req;
-    const io = req.app.get("io"); // Obtener el socket.io desde la app
+    const io = getSocketIO();
 
     console.log("📩 Mensaje recibido:", body);
 

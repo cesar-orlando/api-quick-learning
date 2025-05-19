@@ -31,13 +31,30 @@ export const processMessage = async (body: any, io: any) => {
     });
     await chat.save();
     const dateNow = new Date();
-    await updateLastMessage(WaId, Body,dateNow, "human" )
+    await updateLastMessage(WaId, Body, dateNow, "human");
+
+    io.emit("nuevo_mensaje", {
+      phone: WaId,
+      name: ProfileName,
+      body: Body,
+      date: dateNow,
+      record: customer,
+    });
+
     return { message: "El cliente tiene AI desactivada." };
   } else {
     // Procesar el mensaje utilizando handleMessageType
     const result = await handleMessageType(body, customer);
     console.log("result", result);
-    
+
+    io.emit("nuevo_mensaje", {
+      phone: WaId,
+      name: ProfileName,
+      body: Body,
+      date: new Date(),
+      record: customer,
+    });
+
     return { message: "Mensaje procesado exitosamente.", record: customer };
   }
 };

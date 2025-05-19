@@ -1,9 +1,10 @@
 import { Request, Response } from "express";
 import { DynamicRecord } from "../models/record.model";
-import { sendTwilioMessage } from "../utils/twilio";
+import { sendTemplateMessage, sendTwilioMessage } from "../utils/twilio";
 import Chat from "../models/chat.model";
 import { updateLastMessage } from "./chat.controller";
 import { User } from "../models/user.model";
+import { getSocketIO } from "../socket";
 
 // 🔹 Agregar un campo dinámico a todos los registros de una tabla
 export const addCustomField = async (req: Request, res: Response): Promise<void> => {
@@ -142,17 +143,87 @@ export const updateRecord = async (req: Request, res: Response): Promise<void> =
     }
 
     const record = await DynamicRecord.findById(id);
-
     if (!record) {
       res.status(404).json({ message: "Registro no encontrado." });
       return;
     }
 
-    // 🔥 Actualizamos TODO customFields reemplazándolo
+    // Buscar campos relevantes
+    const classificationField = customFields.find((f: any) => f.key === "classification");
+    const statusField = customFields.find((f: any) => f.key === "status");
+
+    const classification = classificationField?.value || null;
+    const status = statusField?.value || null;
+
+    // 🔁 Cliente => mover a 'clientes' y status: 'en negociación'
+    if (classification === "cliente") {
+      if (statusField) {
+        statusField.value = "en negociación";
+      }
+
+      const newRecord = new DynamicRecord({
+        tableSlug: "clientes",
+        customFields,
+      });
+
+      await newRecord.save();
+      await record.deleteOne();
+      res.json({ message: `Registro movido a tabla 'clientes'.`, record: newRecord });
+      return;
+    }
+
+    // 🔁 Alumno => mover a 'alumnos' y status: 'alumno activo'
+    if (classification === "alumno") {
+      if (statusField) {
+        statusField.value = "alumno activo";
+      }
+
+      const newRecord = new DynamicRecord({
+        tableSlug: "alumnos",
+        customFields,
+      });
+
+      await newRecord.save();
+      await record.deleteOne();
+      res.json({ message: `Registro movido a tabla 'alumnos'.`, record: newRecord });
+      return;
+    }
+
+    // 🔁 Prospecto + sin interés => mover a 'sin-contestar'
+    if (classification === "prospecto" && status === "sin interés") {
+      if (classificationField) classificationField.value = "prospecto";
+      if (statusField) statusField.value = "sin interés";
+
+      const newRecord = new DynamicRecord({
+        tableSlug: "sin-contestar",
+        customFields,
+      });
+
+      await newRecord.save();
+      await record.deleteOne();
+      res.json({ message: `Registro movido a tabla 'sin-contestar'.`, record: newRecord });
+      return;
+    }
+
+    // 🔁 Prospecto + nuevo => mover a 'prospectos'
+    if (classification === "prospecto" && status === "nuevo" && record.tableSlug === "sin-contestar") {
+      if (classificationField) classificationField.value = "prospecto";
+      if (statusField) statusField.value = "nuevo";
+
+      const newRecord = new DynamicRecord({
+        tableSlug: "prospectos",
+        customFields,
+      });
+
+      await newRecord.save();
+      await record.deleteOne();
+      res.json({ message: `Registro movido a tabla 'prospectos'.`, record: newRecord });
+      return;
+    }
+
+    // ✅ Si no hay movimiento de tabla, solo actualiza campos
     record.set("customFields", customFields);
-
     await record.save();
-
     res.json({ message: "Registro actualizado correctamente.", record });
   } catch (error) {
     console.error(error);
@@ -182,15 +253,15 @@ export const deleteRecord = async (req: Request, res: Response): Promise<void> =
 // 🔹 Crear un nuevo registro dinámico para el cliente en WhatsApp
 export const createDynamicRecord = async (phone: string, name: string) => {
   console.log("🛠️ Creando un nuevo registro dinámico para el cliente...");
+  const io = getSocketIO();
 
   const activeUsers = await User.find({ status: true, role: "sales" });
 
   if (!activeUsers.length) {
     throw new Error("❌ No se encontró ningún usuario activo para asignar.");
   }
-  
+
   const activeUser = activeUsers[Math.floor(Math.random() * activeUsers.length)];
-  
 
   // 🔍 Obtener campos definidos de la tabla 'prospectos' (usando el primer registro como referencia)
   const referenceRecord = await DynamicRecord.findOne({ tableSlug: "prospectos" });
@@ -288,10 +359,18 @@ export const createDynamicRecord = async (phone: string, name: string) => {
   await newRecord.save();
   console.log("✅ Cliente registrado exitosamente:", newRecord);
 
+  // Notificación en tiempo real
+  io.emit("nuevo_cliente", {
+    message: "Nuevo cliente registrado",
+    cliente: {
+      phone,
+      name,
+      record: newRecord,
+    },
+  });
+
   return newRecord;
 };
-
-
 
 export const findOrCreateCustomer = async (phone: string, name: string) => {
   try {
@@ -388,6 +467,54 @@ export const sendMessage = async (req: Request, res: Response): Promise<void> =>
     res.json({ message: "Mensaje enviado exitosamente.", sid: result.sid });
   } catch (error) {
     console.error("❌ Error en sendMessage:", error);
+    res.status(500).json({ message: "Error al enviar el mensaje." });
+  }
+};
+
+// 🔹 Envio de forma de pago a un cliente
+export const sendPaymentForm = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { phone, templateId, variables } = req.body;
+
+    if (!phone || !templateId) {
+      res.status(400).json({ message: "El teléfono y el ID del template son requeridos." });
+      return;
+    }
+
+    const result = await sendTemplateMessage(phone, templateId, variables || []);
+
+    if (!result?.sid) {
+      res.status(500).json({ message: "Error al enviar el mensaje de plantilla." });
+      return;
+    }
+
+    res.json({ message: "Template enviado exitosamente.", sid: result.sid });
+  } catch (error) {
+    console.error("❌ Error en sendPaymentForm:", error);
+    res.status(500).json({ message: "Error al enviar el mensaje." });
+  }
+};
+
+export const sendTemplate = async (req: Request, res: Response): Promise<void> => {
+  try {
+    console.log("req.body", req.body);
+    const { phone, templateId, variables } = req.body;
+
+    if (!phone || !templateId) {
+      res.status(400).json({ message: "El teléfono y el ID del template son requeridos." });
+      return;
+    }
+
+    const result = await sendTemplateMessage(phone, templateId, variables || []);
+
+    if (!result?.sid) {
+      res.status(500).json({ message: "Error al enviar el mensaje de plantilla." });
+      return;
+    }
+
+    res.json({ message: "Template enviado exitosamente.", sid: result.sid });
+  } catch (error) {
+    console.error("❌ Error en sendTemplateMessage:", error);
     res.status(500).json({ message: "Error al enviar el mensaje." });
   }
 };
