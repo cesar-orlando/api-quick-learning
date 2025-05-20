@@ -518,3 +518,30 @@ export const sendTemplate = async (req: Request, res: Response): Promise<void> =
     res.status(500).json({ message: "Error al enviar el mensaje." });
   }
 };
+
+// 🔹 Obtener registros de cualquier tabla filtrados por asesorId
+export const getRecordsByTableAndAsesor = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { slug, asesorId } = req.params;
+
+    if (!slug || !asesorId) {
+      res.status(400).json({ message: "El slug y el ID del asesor son requeridos." });
+      return;
+    }
+
+    const records = await DynamicRecord.find({
+      tableSlug: slug,
+      customFields: {
+        $elemMatch: {
+          key: "asesor",
+          value: { $regex: `"${asesorId}"`, $options: "i" },
+        },
+      },
+    });
+
+    res.json({ records, total: records.length });
+  } catch (error) {
+    console.error("❌ Error al obtener los registros:", error);
+    res.status(500).json({ message: "Error al obtener los registros." });
+  }
+};
