@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { User } from "../models/user.model";
+import bcrypt from "bcrypt";
 
 // Obtener todos los usuarios
 export const getAllUsers = async (_req: Request, res: Response) => {
@@ -51,4 +52,23 @@ export const deleteUser = async (req: Request, res: Response): Promise<void> => 
         return
     }
     res.json({ message: "User deleted" });
+};
+
+export const resetUserPassword = async (req: Request, res: Response): Promise<void> => {
+    const { password } = req.body;
+    if (!password) {
+        res.status(400).json({ message: "Password is required" });
+        return;
+    }
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = await User.findByIdAndUpdate(
+        req.params.id,
+        { password: hashedPassword },
+        { new: true }
+    );
+    if (!user) {
+        res.status(404).json({ message: "User not found" });
+        return;
+    }
+    res.json({ message: "Password reset successfully" });
 };

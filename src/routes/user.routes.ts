@@ -5,9 +5,9 @@ import {
   createUser,
   updateUser,
   deleteUser,
+  resetUserPassword,
 } from "../controllers/user.controller";
 import { loginUser } from "../controllers/auth.controller";
-import { authMiddleware } from "../middlewares/auth.middleware";
 
 const router = Router();
 
@@ -18,6 +18,7 @@ router.put("/:id", updateUser);
 router.delete("/:id", deleteUser);
 
 router.post("/login", loginUser);
-  
+
+router.put("/reset-password/:id", resetUserPassword);
 
 export default router;
