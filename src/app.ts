@@ -9,6 +9,8 @@ import recordRoutes from "./routes/record.routes";
 import iconsRoutes from "./routes/icons.routes";
 import iaRoutes from "./routes/ia-config.routes";
 import messageRoutes from "./routes/message.routes";
+import twilioRoutes from "./routes/twilio.routes";
+import path from "path";
 
 const app = express();
 
@@ -29,6 +31,10 @@ app.use("/api/ia-config", iaRoutes);
 
 //Enviar mensaje de WhatsApp
 app.use("/api/whatsapp", messageRoutes);
+
+app.use("/twilio", twilioRoutes);
+
+app.use("/audios", express.static(path.join(__dirname, "..", "public", "audios")));
 
 app.get("/", (req, res) => {
     res.json({
