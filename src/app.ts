@@ -32,9 +32,10 @@ app.use("/api/ia-config", iaRoutes);
 //Enviar mensaje de WhatsApp
 app.use("/api/whatsapp", messageRoutes);
 
-app.use("/twilio", twilioRoutes);
+app.use("/webhook", twilioRoutes);
 
 app.use("/audios", express.static(path.join(__dirname, "..", "public", "audios")));
+
 
 app.get("/", (req, res) => {
     res.json({

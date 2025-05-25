@@ -1,188 +1,142 @@
+// server.ts (versión adaptada para llamadas entrantes con ElevenLabs)
+import express from "express";
+import { createServer } from "http";
+import { WebSocketServer } from "ws";
 import dotenv from "dotenv";
-import http from "http";
+import axios from "axios";
+import WebSocket from "ws";
 import app from "./app";
-import { connectDB } from "./config/database";
-import { setSocketIO } from "./socket";
-import { WebSocketServer, WebSocket } from "ws";
-import { v4 as uuidv4 } from "uuid";
-// import { startWhatsappBot } from "./services/whatsapp";
-import VAD from "node-vad";
-import { fft, util as fftUtil } from "fft-js";
-import { pcmToWav, transcribeWithDeepgram } from "./utils/transcribe";
 
 dotenv.config();
 
-const PORT = process.env.PORT || 10000;
-const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/clientesdb";
+const server = createServer(app);
+const wss = new WebSocketServer({ noServer: true });
 
-const server = http.createServer(app);
-const io = setSocketIO(server);
+let streamSid: string | null = null;
 
-// --- INICIA TU WEBSOCKET DE TWILIO MEDIA STREAMS EN EL MISMO SERVER ---
-const activeCalls = new Map<string, { ws: WebSocket, callSid: string }>();
-const wss = new WebSocketServer({ server, path: "/ws/twilio-media-stream" });
+wss.on("connection", async (twilioWs) => {
+  console.log("✅ Twilio WebSocket conectado");
 
-const vad = new VAD(VAD.Mode.VERY_AGGRESSIVE);
+  let elevenWs: WebSocket | null = null;
 
-const CHUNK_DURATION_MS = 20; // Twilio envía ~20ms por chunk
-const MIN_PHRASE_MS = 400;   // 400 ms mínimo
-const SILENCE_LIMIT = 5;     // menos chunks de silencio para cortar frase
-
-wss.on("connection", (ws, req) => {
-  let callSid: string | undefined;
-  let audioBuffer: Buffer[] = [];
-  let silenceChunks = 0;
-
-  // Variables para umbral dinámico
-  let ambientRmsSum = 0;
-  let ambientRmsCount = 0;
-  let dynamicThreshold = 0;
-  const AMBIENT_CHUNKS = 100; // ≈2 segundos si cada chunk es 20ms
-  const THRESHOLD_MARGIN = 1000; // o 1000
-
-  ws.on("message", async (data) => {
+  const setupElevenLabs = async () => {
     try {
-      const msg = JSON.parse(data.toString());
-      if (msg.event === "start") {
-        const newCallSid: string = msg.start.callSid || uuidv4();
-        callSid = newCallSid;
-        activeCalls.set(newCallSid, { ws, callSid: newCallSid });
-        console.log(`🔗 Nueva llamada: ${newCallSid}`);
-      }
-      if (msg.event === "media") {
-        const chunk = Buffer.from(msg.media.payload, "base64");
-        const rms = getRms(chunk);
+      const { data } = await axios.get(
+        `https://api.elevenlabs.io/v1/convai/conversation/get_signed_url?agent_id=agent_01jw2vkb3pf9w8jx85daq02mae`,
+        { headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY_VV } }
+      );
 
-        // Calcula el RMS ambiente los primeros 2 segundos
-        if (ambientRmsCount < AMBIENT_CHUNKS) {
-          ambientRmsSum += rms;
-          ambientRmsCount++;
-          dynamicThreshold = 0; // aún no usar
-        } else if (ambientRmsCount === AMBIENT_CHUNKS) {
-          dynamicThreshold = (ambientRmsSum / ambientRmsCount) + THRESHOLD_MARGIN;
-          ambientRmsCount++; // solo calcula una vez
-          console.log(`🔧 Umbral dinámico calculado: ${dynamicThreshold}`);
-        }
+      elevenWs = new WebSocket(data.signed_url);
 
-        // Usa el umbral dinámico si ya está calculado, si no, usa uno alto para no aceptar nada
-        const MIN_THRESHOLD = 8000;
-        const threshold = Math.max(dynamicThreshold > 0 ? dynamicThreshold : 999999, MIN_THRESHOLD);
+      elevenWs.on("open", () => console.log("🎤 ElevenLabs conectado"));
 
-        // LOG para ver el RMS y el umbral
-        // console.log(`🔊 RMS: ${rms} | Umbral: ${threshold} | callSid: ${callSid}`);
-
-        vad.processAudio(chunk, 8000).then(async (res: any) => {
-          if (
-            res === VAD.Event.VOICE &&
-            rms > threshold &&
-            isVoiceDominant(chunk, 8000) // <-- filtro por frecuencia
-          ) {
-            console.log(`✅ Chunk aceptado (VOZ dominante en frecuencia): RMS ${rms}`);
-            audioBuffer.push(chunk);
-            silenceChunks = 0;
-          } else {
-            silenceChunks++;
-            if (audioBuffer.length * CHUNK_DURATION_MS > MIN_PHRASE_MS && silenceChunks >= SILENCE_LIMIT) {
-              const phraseBuffer = Buffer.concat(audioBuffer);
-              if (phraseBuffer.length < 2000) { // filtra frases muy cortas
-                audioBuffer = [];
-                return;
+      elevenWs.on("message", (data) => {
+        const message = JSON.parse(data.toString());
+        console.log("message.type", message.type);
+        switch (message.type) {
+          case "audio":
+            if (streamSid) {
+              console.log("entra aqui  ---> audio");
+              const audioPayload = message.audio?.chunk || message.audio_event?.audio_base_64;
+              if (audioPayload) {
+                const audioData = {
+                  event: "media",
+                  streamSid,
+                  media: {
+                    payload: audioPayload,
+                  },
+                };
+                twilioWs.send(JSON.stringify(audioData));
               }
-              console.log(
-                `📝 Frase detectada para llamada ${callSid}: ${audioBuffer.length} chunks, ${(audioBuffer.length * CHUNK_DURATION_MS) / 1000}s, tamaño ${phraseBuffer.length} bytes`
-              );
-              try {
-                const wavBuffer = pcmToWav(phraseBuffer, 8000, 1); // 8000 Hz, mono
-                const text = await transcribeWithDeepgram(wavBuffer);
-                console.log(`📝 Transcripción Deepgram: ${text}`);
-              } catch (err) {
-                console.error("❌ Error transcribiendo con Deepgram:", err);
-              }
-              audioBuffer = [];
             }
-          }
-        });
-      }
-      if (msg.event === "stop") {
-        // Procesa el buffer final si quieres
-        if (audioBuffer.length > 0) {
-          const phraseBuffer = Buffer.concat(audioBuffer);
-          console.log(
-            `📝 Frase final detectada para llamada ${callSid}: ${audioBuffer.length} chunks, ${(audioBuffer.length * CHUNK_DURATION_MS) / 1000}s, tamaño ${phraseBuffer.length} bytes`
-          );
-          if (phraseBuffer.length < 2000) { // ~0.25s de audio PCM 8kHz mono
-            audioBuffer = [];
-            return;
-          }
-          // transcribeWithASR(phraseBuffer, callSid);
+            break;
+
+          case "interruption":
+            twilioWs.send(JSON.stringify({ event: "clear", streamSid }));
+            break;
+          case "ping":
+            if (message.ping_event?.event_id && elevenWs) {
+              elevenWs.send(
+                JSON.stringify({
+                  type: "pong",
+                  event_id: message.ping_event.event_id,
+                })
+              );
+            }
+            break;
+          case "agent_response":
+            console.log("🧠 Respuesta del agente:", message);
+            break;
+          case "agent_response_correction":
+            console.log("📝 Corrección de respuesta del agente:", message.agent_response_correction?.text);
+            break;
+          case "user_transcript":
+            console.log(`[Twilio] User transcript: ${message.user_transcription_event?.user_transcript}`);
+            break;
+          default:
+            console.log(`Unhandled message type from Eleven Labs: ${message.type}`);
         }
-        audioBuffer = [];
-        if (callSid) {
-          activeCalls.delete(callSid);
-          console.log(`❌ Llamada terminada: ${callSid}`);
-        }
-        ws.close();
+      });
+
+      elevenWs.on("error", (error) => console.error("❌ Error con Eleven Labs:", error));
+
+      elevenWs.on("close", () => console.log("🔌 Eleven Labs desconectado"));
+    } catch (error) {
+      console.error("❌ No se pudo conectar a ElevenLabs:", error);
+    }
+  };
+
+  await setupElevenLabs();
+
+  twilioWs.on("message", (msg) => {
+    try {
+      const message = JSON.parse(msg.toString());
+      switch (message.event) {
+        case "start":
+          streamSid = message.start.streamSid;
+          console.log("📞 Llamada iniciada", streamSid);
+          break;
+
+        case "media":
+          if (elevenWs && elevenWs.readyState === WebSocket.OPEN) {
+            streamSid = message.streamSid;
+            const audioMessage = {
+              user_audio_chunk: message.media.payload,
+            };
+            elevenWs.send(JSON.stringify(audioMessage));
+          }
+          break;
+
+        case "stop":
+          console.log("📴 Llamada finalizada");
+          if (elevenWs && elevenWs.readyState === WebSocket.OPEN) elevenWs.close();
+          twilioWs.close();
+          break;
       }
-    } catch (err) {
-      console.error("❌ Error procesando mensaje:", err);
+    } catch (e) {
+      console.error("⚠️ Error procesando mensaje Twilio:", e);
     }
   });
 
-  ws.on("close", () => {
-    if (callSid) {
-      activeCalls.delete(callSid);
-      console.log(`🔌 WebSocket cerrado para llamada: ${callSid}`);
-    }
+  twilioWs.on("close", () => {
+    console.log("🔌 WebSocket Twilio cerrado");
+    if (elevenWs && elevenWs.readyState === WebSocket.OPEN) elevenWs.close();
   });
 });
 
-function getRms(buffer: Buffer): number {
-  let sum = 0;
-  for (let i = 0; i < buffer.length; i += 2) {
-    const sample = buffer.readInt16LE(i);
-    sum += sample * sample;
+server.on("upgrade", (req, socket, head) => {
+  const { pathname } = new URL(req.url!, "http://localhost");
+  console.log("🔁 Upgrade request a:", pathname);
+  if (pathname === "/outbound-stream") {
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      console.log("🔁 Upgrade match: conexión WebSocket a /outbound-stream");
+      wss.emit("connection", ws, req);
+    });
+  } else {
+    socket.destroy();
   }
-  return Math.sqrt(sum / (buffer.length / 2));
-}
+});
 
-function isVoiceDominant(chunk: Buffer, sampleRate = 8000): boolean {
-  // Convierte el buffer PCM a un arreglo de números
-  const samples = [];
-  for (let i = 0; i < chunk.length; i += 2) {
-    samples.push(chunk.readInt16LE(i));
-  }
-  // FFT requiere longitud potencia de 2, recorta si es necesario
-  const N = Math.pow(2, Math.floor(Math.log2(samples.length)));
-  const input = samples.slice(0, N);
-
-  const phasors = fft(input);
-  const mags = fftUtil.fftMag(phasors);
-
-  // Calcula la frecuencia de cada bin
-  const freqs = mags.map((_: any, i: any) => i * sampleRate / N);
-
-  // Suma la energía en el rango de voz humana (80–500 Hz)
-  let voiceEnergy = 0;
-  let totalEnergy = 0;
-  for (let i = 0; i < mags.length; i++) {
-    totalEnergy += mags[i];
-    if (freqs[i] >= 80 && freqs[i] <= 500) {
-      voiceEnergy += mags[i];
-    }
-  }
-  // Si la energía de voz es al menos el 20% del total, lo consideramos voz dominante
-  return (voiceEnergy / totalEnergy) > 0.15;
-}
-
-async function main() {
-  await connectDB(MONGO_URI);
-  // 🚀 Iniciar WhatsApp Web Bot
-  // startWhatsappBot();
-
-  server.listen(PORT, () => {
-    console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
-    console.log(`🟢 WebSocket Twilio Media Streams en ws://localhost:${PORT}/ws/twilio-media-stream`);
-  });
-}
-
-main();
+server.listen(process.env.PORT || 8080, () => {
+  console.log("🚀 Servidor corriendo en http://localhost:" + (process.env.PORT || 8080));
+});
