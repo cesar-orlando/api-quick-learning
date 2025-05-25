@@ -17,7 +17,7 @@ export async function getNatalIAResponse(messages: { role: string; content: stri
     model: "gpt-4",
     messages: chatMessages as ChatCompletionMessageParam[],
     temperature: 0.7,
-    max_tokens: 1500,
+    max_tokens: 150,
   });
 
   return response.choices[0]?.message?.content

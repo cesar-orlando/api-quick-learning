@@ -21,17 +21,13 @@ export const handleVoiceCall = (req: Request, res: Response) => {
   console.log("📞 [handleVoiceCall] body:", req.body);
   const response = new twiml.VoiceResponse();
 
-  // Reproduce saludo, pausa, luego gather para escuchar al usuario
-  response.play("https://7b76-149-19-168-217.ngrok-free.app/audios/welcome-natalia.mp3");
-  response.pause({ length: 1 });
-  response.gather({
-    input: ["speech"],
-    action: "/twilio/voice/transcription",
-    method: "POST",
-    timeout: 10,
-    speechTimeout: "auto",
-    speechModel: "phone_call",
-    language: "es-MX",
+  // Saludo inicial (puedes dejar el audio de bienvenida)
+  response.play("https://9124-2605-59c8-7150-2110-cd2b-5b23-3b4b-2177.ngrok-free.app/audios/welcome-natalia.mp3");
+
+  // Inicia el stream de audio hacia tu WebSocket server
+  response.connect().stream({
+    url: "wss://9124-2605-59c8-7150-2110-cd2b-5b23-3b4b-2177.ngrok-free.app/ws/twilio-media-stream", // Cambia por tu endpoint real
+    track: "inbound_track" // O "inbound_track" si solo quieres el audio del usuario
   });
 
   res.type("text/xml").send(response.toString());
