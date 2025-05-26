@@ -25,3 +25,6 @@ git clone git@github.com:tuusuario/api-milkasa.git
 cd api-milkasa
 
 yarn install
+
+
+Para checar el agent: npx ts-node checkAgent.ts y para actualizarlo: npx ts-node updatePrompt.ts

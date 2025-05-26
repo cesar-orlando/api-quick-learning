@@ -10,6 +10,8 @@ import iconsRoutes from "./routes/icons.routes";
 import iaRoutes from "./routes/ia-config.routes";
 import messageRoutes from "./routes/message.routes";
 import twilioRoutes from "./routes/twilio.routes";
+import callRoutes from "./routes/call.routes";
+
 import path from "path";
 
 const app = express();
@@ -31,6 +33,9 @@ app.use("/api/ia-config", iaRoutes);
 
 //Enviar mensaje de WhatsApp
 app.use("/api/whatsapp", messageRoutes);
+
+app.use("/api/calls", callRoutes);
+
 
 app.use("/webhook", twilioRoutes);
 

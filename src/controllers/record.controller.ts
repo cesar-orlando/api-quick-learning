@@ -360,14 +360,16 @@ export const createDynamicRecord = async (phone: string, name: string) => {
   console.log("✅ Cliente registrado exitosamente:", newRecord);
 
   // Notificación en tiempo real
-  io.emit("nuevo_cliente", {
-    message: "Nuevo cliente registrado",
-    cliente: {
-      phone,
-      name,
-      record: newRecord,
-    },
-  });
+  if (io) {
+    io.emit("nuevo_cliente", {
+      message: "Nuevo cliente registrado",
+      cliente: {
+        phone,
+        name,
+        record: newRecord,
+      },
+    });
+  }
 
   return newRecord;
 };

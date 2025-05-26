@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { handleVoiceCall, handleVoiceRecording, handleVoiceTranscription } from "../controllers/twilio.controller";
+import { handleVoiceCall} from "../controllers/twilio.controller";
 
 const router = Router();
 
@@ -13,15 +13,7 @@ router.get("/", (req, res) => {
   });
 });
 
-router.post("/incoming-call", (req, res) => {
-  const responseXml = `<?xml version="1.0" encoding="UTF-8"?><Response><Connect><Stream url="wss://a0ce-2605-59c8-7150-2110-ccb2-81d2-b055-3849.ngrok-free.app/outbound-stream" /></Connect></Response>`;
-  res.type("text/xml");
-  res.send(responseXml);
-});
+router.post("/incoming-call", handleVoiceCall);
 
-router.post("/voice", handleVoiceCall); // primer paso: graba
-router.post("/voice/recording", handleVoiceRecording); // <-- Nueva ruta
-router.post("/voice/transcription", handleVoiceTranscription); // segundo paso: procesa
-router.post("/voice/process_input", handleVoiceTranscription); // Agrega esta línea
 
 export default router;

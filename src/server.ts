@@ -1,23 +1,46 @@
 // server.ts (versión adaptada para llamadas entrantes con ElevenLabs)
 import express from "express";
-import { createServer } from "http";
+import http from "http";
 import { WebSocketServer } from "ws";
 import dotenv from "dotenv";
 import axios from "axios";
 import WebSocket from "ws";
 import app from "./app";
+import mongoose from "mongoose";
+import { setSocketIO } from "./socket";
+import { saveCallInternal } from "./controllers/call.controller";
 
 dotenv.config();
 
-const server = createServer(app);
-const wss = new WebSocketServer({ noServer: true });
+const PORT = process.env.PORT || 10000;
+const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/clientesdb";
+
+const server = http.createServer(app);
+setSocketIO(server);
 
 let streamSid: string | null = null;
 
-wss.on("connection", async (twilioWs) => {
-  console.log("✅ Twilio WebSocket conectado");
+const wss = new WebSocketServer({ noServer: true });
 
+// Exportado para que lo use el controller
+export const tempCalls: { [callSid: string]: { phone: string } } = {};
+
+wss.on("connection", async (twilioWs, req) => {
   let elevenWs: WebSocket | null = null;
+  let elevenConversationId: string | null = null;
+  let twilioConversationId: string | null = null;
+  let callSaved = false;
+
+  // Busca el número en tempCalls usando el CallSid
+  const trySaveCall = () => {
+    if (!callSaved && elevenConversationId && twilioConversationId && tempCalls[twilioConversationId]) {
+      callSaved = true;
+      const phone = tempCalls[twilioConversationId].phone;
+      saveCallInternal(phone, twilioConversationId, elevenConversationId);
+      delete tempCalls[twilioConversationId];
+      console.log("✅ Llamada guardada:", phone, twilioConversationId, elevenConversationId);
+    }
+  };
 
   const setupElevenLabs = async () => {
     try {
@@ -32,11 +55,9 @@ wss.on("connection", async (twilioWs) => {
 
       elevenWs.on("message", (data) => {
         const message = JSON.parse(data.toString());
-        console.log("message.type", message.type);
         switch (message.type) {
           case "audio":
             if (streamSid) {
-              console.log("entra aqui  ---> audio");
               const audioPayload = message.audio?.chunk || message.audio_event?.audio_base_64;
               if (audioPayload) {
                 const audioData = {
@@ -50,7 +71,6 @@ wss.on("connection", async (twilioWs) => {
               }
             }
             break;
-
           case "interruption":
             twilioWs.send(JSON.stringify({ event: "clear", streamSid }));
             break;
@@ -73,13 +93,17 @@ wss.on("connection", async (twilioWs) => {
           case "user_transcript":
             console.log(`[Twilio] User transcript: ${message.user_transcription_event?.user_transcript}`);
             break;
+          case "conversation_initiation_metadata":
+            elevenConversationId = message.conversation_initiation_metadata_event?.conversation_id;
+            console.log("ElevenLabs conversationId:", elevenConversationId);
+            trySaveCall();
+            break;
           default:
             console.log(`Unhandled message type from Eleven Labs: ${message.type}`);
         }
       });
 
       elevenWs.on("error", (error) => console.error("❌ Error con Eleven Labs:", error));
-
       elevenWs.on("close", () => console.log("🔌 Eleven Labs desconectado"));
     } catch (error) {
       console.error("❌ No se pudo conectar a ElevenLabs:", error);
@@ -88,31 +112,40 @@ wss.on("connection", async (twilioWs) => {
 
   await setupElevenLabs();
 
+  // Cuando recibas el mensaje "media" de Twilio, extrae el CallSid si puedes
   twilioWs.on("message", (msg) => {
     try {
       const message = JSON.parse(msg.toString());
-      switch (message.event) {
-        case "start":
-          streamSid = message.start.streamSid;
-          console.log("📞 Llamada iniciada", streamSid);
-          break;
+      // console.log("msg Twilio:", message);
 
+      // Intenta asignar el callSid si llega en "stop"
+      if (!twilioConversationId && message.stop?.callSid) {
+        twilioConversationId = message.stop.callSid;
+        console.log("📞 callSid asignado desde 'stop':", twilioConversationId);
+      }
+
+      switch (message.event) {
         case "media":
+          streamSid = message.streamSid;
           if (elevenWs && elevenWs.readyState === WebSocket.OPEN) {
-            streamSid = message.streamSid;
             const audioMessage = {
               user_audio_chunk: message.media.payload,
             };
             elevenWs.send(JSON.stringify(audioMessage));
           }
           break;
-
         case "stop":
+          if (!twilioConversationId && message.stop?.callSid) {
+            twilioConversationId = message.stop.callSid;
+            console.log("📞 callSid asignado desde 'stop':", twilioConversationId);
+          }
+          trySaveCall(); // <-- Intenta guardar aquí también
           console.log("📴 Llamada finalizada");
           if (elevenWs && elevenWs.readyState === WebSocket.OPEN) elevenWs.close();
           twilioWs.close();
           break;
       }
+      trySaveCall();
     } catch (e) {
       console.error("⚠️ Error procesando mensaje Twilio:", e);
     }
@@ -137,6 +170,16 @@ server.on("upgrade", (req, socket, head) => {
   }
 });
 
-server.listen(process.env.PORT || 8080, () => {
-  console.log("🚀 Servidor corriendo en http://localhost:" + (process.env.PORT || 8080));
-});
+// Conexión a MongoDB
+mongoose
+  .connect(MONGO_URI, {})
+  .then(() => {
+    console.log("✅ Conectado a MongoDB");
+    server.listen(PORT, () => {
+      console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error("❌ Error conectando a MongoDB:", err);
+    process.exit(1);
+  });
