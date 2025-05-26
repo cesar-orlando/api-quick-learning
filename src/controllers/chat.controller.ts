@@ -133,7 +133,10 @@ export const updateLastMessage = async (
   messageDate: Date,
   respondedBy: "bot" | "human" | "asesor"
 ) => {
-  const record = await DynamicRecord.findOne({ tableSlug: "prospectos", "customFields.value": phone });
+  const record = await DynamicRecord.findOne({
+    tableSlug: { $in: ["alumnos", "clientes", "prospectos", "sin-contestar"] },
+    "customFields.value": phone,
+  });
 
   if (!record) {
     console.warn("Cliente no encontrado con ese número:", phone);

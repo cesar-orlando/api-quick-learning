@@ -55,6 +55,9 @@ const transcribeAudio = async (audioUrl: string) => {
   }
 };
 
+// Buffer y temporizadores por usuario
+const messageBuffers = new Map<string, { messages: string[]; timeout: NodeJS.Timeout }>();
+
 export const handleMessageType = async (body: any, customer: any) => {
   const { WaId, MessageType, Latitude, Longitude, MediaUrl0, MediaContentType0, Body } = body;
 
@@ -73,22 +76,17 @@ export const handleMessageType = async (body: any, customer: any) => {
   let systemMsg = "";
 
   if (MessageType === "audio" && MediaUrl0) {
-    // Procesar mensaje de audio
     const transcription = await transcribeAudio(MediaUrl0);
     systemMsg = `🎙️ Transcripción del audio: ${transcription}`;
   } else if (MessageType === "image" && MediaUrl0) {
-    // Procesar mensaje de imagen
     systemMsg = `🖼️ El usuario compartió una imagen: ${MediaUrl0}`;
   } else if (MessageType === "video" && MediaUrl0) {
-    // Procesar mensaje de video
     systemMsg = `🎥 El usuario compartió un video: ${MediaUrl0}`;
   } else if (MessageType === "location" && Latitude && Longitude) {
-    // Procesar mensaje de ubicación
     const lat = parseFloat(Latitude);
     const lng = parseFloat(Longitude);
     systemMsg = `📍 El usuario compartió su ubicación: https://www.google.com/maps?q=${lat},${lng}`;
   } else {
-    // Procesar mensaje de texto u otros tipos no manejados explícitamente
     systemMsg = Body;
   }
 
@@ -107,17 +105,34 @@ export const handleMessageType = async (body: any, customer: any) => {
     return { message: "El usuario no tiene activado el IA" };
   }
 
-  const aiResponse = await responseIA(systemMsg, WaId);
-  await sendTwilioMessage(WaId, aiResponse);
+  // --- BUFFER DE MENSAJES ---
+  if (!messageBuffers.has(WaId)) {
+    messageBuffers.set(WaId, { messages: [], timeout: null as any });
+  }
+  const buffer = messageBuffers.get(WaId)!;
+  buffer.messages.push(systemMsg);
 
-  chat.messages.push({
-    direction: "outbound-api",
-    body: aiResponse,
-    respondedBy: "bot",
-  });
+  if (buffer.timeout) {
+    clearTimeout(buffer.timeout);
+  }
 
-  await chat.save();
-  await updateLastMessage(WaId, Body, dateNow, "bot");
+  buffer.timeout = setTimeout(async () => {
+    const allMsgs = buffer.messages.join("\n");
+    const aiResponse = await responseIA(allMsgs, WaId);
+    await sendTwilioMessage(WaId, aiResponse);
 
-  return { message: `${MessageType} procesado exitosamente.` };
+    chat.messages.push({
+      direction: "outbound-api",
+      body: aiResponse,
+      respondedBy: "bot",
+    });
+
+    await chat.save();
+    await updateLastMessage(WaId, Body, new Date(), "bot");
+
+    // Limpiar buffer
+    messageBuffers.delete(WaId);
+  }, 15000);
+
+  return { message: `${MessageType} recibido y encolado para respuesta IA.` };
 };

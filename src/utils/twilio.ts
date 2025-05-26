@@ -79,18 +79,4 @@ export const sendTemplateMessage = async (phone: string, templateId: string, var
   }
 };
 
-export const sendPayment = async (phone: string): Promise<any> => {
-  try {
-    const response = await client.messages.create({
-      to: `whatsapp:${phone}`,
-      from: `whatsapp:+5213341610749`, // Número de Twilio habilitado para WhatsApp
-      contentSid: "HX1df87ec38ef585d7051f805dec8a395b",
-    });
-    return response;
-  } catch (error) {
-    console.error("❌ Error al enviar template con Twilio:", error);
-    return null;
-  }
-};
-
 export default client;
