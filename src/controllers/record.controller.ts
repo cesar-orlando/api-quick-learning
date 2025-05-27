@@ -122,9 +122,19 @@ export const getRecordsByTable = async (req: Request, res: Response) => {
   try {
     const { tableSlug } = req.params;
 
-    const records = await DynamicRecord.find({ tableSlug }).sort({ createdAt: -1 }); // Más recientes arriba
+    // Trae los registros sin ordenar
+    const records = await DynamicRecord.find({ tableSlug });
 
-    res.json({ records: records, total: records.length });
+    // Ordena por lastMessageTime (más nuevo arriba)
+    records.sort((a: any, b: any) => {
+      const aField = a.customFields.find((f: any) => f.key === "lastMessageTime");
+      const bField = b.customFields.find((f: any) => f.key === "lastMessageTime");
+      const aTime = aField?.value ? new Date(aField.value).getTime() : 0;
+      const bTime = bField?.value ? new Date(bField.value).getTime() : 0;
+      return bTime - aTime; // Más nuevo arriba
+    });
+
+    res.json({ records, total: records.length });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Error al obtener los registros." });
@@ -539,6 +549,15 @@ export const getRecordsByTableAndAsesor = async (req: Request, res: Response): P
           value: { $regex: `"${asesorId}"`, $options: "i" },
         },
       },
+    });
+
+    // Ordenar por lastMessageTime (más nuevo arriba)
+    records.sort((a: any, b: any) => {
+      const aField = a.customFields.find((f: any) => f.key === "lastMessageTime");
+      const bField = b.customFields.find((f: any) => f.key === "lastMessageTime");
+      const aTime = aField?.value ? new Date(aField.value).getTime() : 0;
+      const bTime = bField?.value ? new Date(bField.value).getTime() : 0;
+      return bTime - aTime; // Más nuevo arriba
     });
 
     res.json({ records, total: records.length });
