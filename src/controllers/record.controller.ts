@@ -294,7 +294,7 @@ export const createDynamicRecord = async (phone: string, name: string) => {
     {
       key: "ai",
       label: "AI",
-      value: true,
+      value: false, // le quitamos el TRUE para hacer pruebas 27/05/2025
       options: ["true", "false"],
       type: "select",
     },
